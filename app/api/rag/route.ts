@@ -17,7 +17,7 @@ export async function POST(request: Request) {
           status: 400,
         }
       );
-    }
+    } 
 
     // 1. Create embedding for the user's question
     const questionEmbedding = await embedQuery(question);
@@ -43,16 +43,32 @@ export async function POST(request: Request) {
       pineconeRank: index + 1,
     }));
 
-    // 4. Let Gemini score each candidate by how well it answers the question
-    const reranked = await rerankChunks(question, documents);
+    // 4. Let Gemini score each candidate by how well it answers the question.
+    // If that fails (e.g. a 503), keep Pinecone's order with unknown scores
+    // (null, not 0: 0 means "judged irrelevant")
+    let rerankFailed = false;
+    let rerankedDocuments;
 
-    const rerankedDocuments = reranked.map(({ id, score }) => ({
-      ...documents.find((doc) => doc.id === id)!,
-      rerankScore: score,
-    }));
+    try {
+      const reranked = await rerankChunks(question, documents);
+
+      rerankedDocuments = reranked.map(({ id, score }) => ({
+        ...documents.find((doc) => doc.id === id)!,
+        rerankScore: score,
+      }));
+    } catch (error) {
+      console.error("Reranking failed, using Pinecone order", error);
+
+      rerankFailed = true;
+      rerankedDocuments = documents.map((doc) => ({
+        ...doc,
+        rerankScore: null,
+      }));
+    }
 
     return Response.json({
       question,
+      rerankFailed,
       documents: rerankedDocuments,
     });
   } catch (error) {

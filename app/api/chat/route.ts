@@ -1,10 +1,21 @@
+import { ApiError } from "@google/genai";
 import { ai, CHAT_MODEL, embedQuery } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
 import { prisma } from "@/lib/prisma";
+import { rerankChunks } from "@/lib/rerank";
 
 // Matches scoring below this are too weakly related to use as context.
 // A starting point, tuned by testing real questions against the documents.
 const MIN_SCORE = 0.5;
+
+// Give up on reranking after this long and answer with Pinecone's order,
+// so a slow reranker can't hold up the chat
+const RERANK_TIMEOUT_MS = 8000;
+
+// The system prompt tells Gemini to reply with exactly this when the
+// context doesn't contain the answer
+const NOT_FOUND_ANSWER =
+  "I couldn't find that information in the provided documents.";
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -54,15 +65,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Save the user's question to the conversation
-    await prisma.message.create({
-      data: {
-        conversationId,
-        role: "user",
-        text: question,
-      },
-    });
-
     // --------------------------------
     // 1. Create embedding for question
     // --------------------------------
@@ -102,17 +104,50 @@ export async function POST(request: Request) {
       matches.map((match) => match.score?.toFixed(3)),
     );
 
-    const sources = matches
+    const candidates = matches
       .filter((match) => (match.score ?? 0) >= MIN_SCORE)
       .map((match) => ({
         id: match.id,
-        text: match.metadata?.text,
+        text: String(match.metadata?.text ?? ""),
         // Documents from /api/ingest have no source or chunkIndex
         source: match.metadata?.source ?? "Company notes",
         chunkIndex: match.metadata?.chunkIndex ?? 0,
+        section: match.metadata?.section as string | undefined,
         score: match.score,
       }))
       .filter((doc) => doc.text);
+
+    // --------------------------------
+    // 4. Rerank: keep only chunks that help answer the question
+    // --------------------------------
+
+    let sources = candidates;
+
+    try {
+      const reranked = await Promise.race([
+        rerankChunks(question, candidates),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Reranking timed out")),
+            RERANK_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+
+      console.log(
+        "Rerank scores:",
+        reranked.map(({ id, score }) => `${id}: ${score}`),
+      );
+
+      // Most relevant first; drop chunks judged irrelevant (0).
+      // A null score (Gemini skipped it) is unknown, so it's kept.
+      sources = reranked
+        .filter(({ score }) => score !== 0)
+        .map(({ id }) => candidates.find((doc) => doc.id === id)!);
+    } catch (error) {
+      // Answer with Pinecone's order rather than failing the chat
+      console.error("Reranking failed, using Pinecone order", error);
+    }
 
     // Label each chunk with where it came from
     const context = sources
@@ -127,7 +162,7 @@ ${doc.text}
       .join("\n---\n");
 
     // --------------------------------
-    // 4. Build instructions + chat history for Gemini
+    // 5. Build instructions + chat history for Gemini
     // --------------------------------
     const systemInstruction = `
 You are a helpful company knowledge assistant.
@@ -135,7 +170,7 @@ You are a helpful company knowledge assistant.
 Answer the user's question using ONLY the provided context.
 
 If the answer cannot be found in the context, say:
-"I couldn't find that information in the provided documents."
+"${NOT_FOUND_ANSWER}"
 
 Do not make up company policies or information.
 
@@ -154,7 +189,7 @@ ${context}
     }));
 
     // --------------------------------
-    // 5. Stream Gemini response
+    // 6. Stream Gemini response
     // --------------------------------
 
     const stream = await ai.models.generateContentStream({
@@ -163,6 +198,16 @@ ${context}
         systemInstruction,
       },
       contents,
+    });
+
+    // Save the question only once Gemini has accepted the request, so a
+    // failed request (e.g. a 503) doesn't leave an unanswered question
+    await prisma.message.create({
+      data: {
+        conversationId,
+        role: "user",
+        text: question,
+      },
     });
 
     const encoder = new TextEncoder();
@@ -187,8 +232,16 @@ ${context}
             }
           }
 
+          // Nothing was answered from these chunks, so don't list them
+          // as sources (happens when reranking fell back to Pinecone)
+          const usedSources = result.trim().startsWith(NOT_FOUND_ANSWER)
+            ? []
+            : sources;
+
           // Sent after the answer so the UI can list them under it
-          controller.enqueue(encodeEvent({ type: "sources", sources }));
+          controller.enqueue(
+            encodeEvent({ type: "sources", sources: usedSources }),
+          );
 
           if (result) {
             await prisma.message.create({
@@ -196,7 +249,7 @@ ${context}
                 conversationId,
                 role: "ai",
                 text: result,
-                sources,
+                sources: usedSources,
               },
             });
           }
@@ -215,6 +268,18 @@ ${context}
     });
   } catch (error) {
     console.error(error);
+
+    // Gemini is overloaded: show a readable message instead of its raw JSON
+    if (error instanceof ApiError && error.status === 503) {
+      return Response.json(
+        {
+          error: "The AI model is busy right now. Please try again in a moment.",
+        },
+        {
+          status: 503,
+        },
+      );
+    }
 
     return Response.json(
       {
