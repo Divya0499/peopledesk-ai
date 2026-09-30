@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { UploadIcon } from "./icons";
 
 type Status =
   | { type: "idle" }
@@ -59,32 +60,7 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
   const uploading = status.type === "uploading";
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      {/* Status message */}
-      {status.type === "uploading" && (
-        <span className="truncate text-sm text-zinc-500">
-          Uploading {status.fileName}...
-        </span>
-      )}
-
-      {status.type === "success" && (
-        <span
-          className="truncate text-sm text-green-600 dark:text-green-400"
-          title={status.fileName}
-        >
-          ✓ {status.fileName} ({status.chunks} chunks)
-        </span>
-      )}
-
-      {status.type === "error" && (
-        <span
-          className="truncate text-sm text-red-600 dark:text-red-400"
-          title={status.message}
-        >
-          {status.message}
-        </span>
-      )}
-
+    <div className="flex flex-col gap-2">
       {/* Hidden file input, opened by the button */}
       <input
         ref={inputRef}
@@ -104,10 +80,37 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
       >
+        {uploading ? (
+          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <UploadIcon className="size-4" />
+        )}
         {uploading ? "Uploading..." : "Upload PDF"}
       </button>
+
+      {/* Status message */}
+      {status.type === "uploading" && (
+        <p className="truncate text-xs text-zinc-500" title={status.fileName}>
+          Processing {status.fileName}
+        </p>
+      )}
+
+      {status.type === "success" && (
+        <p
+          className="truncate text-xs text-emerald-600 dark:text-emerald-400"
+          title={status.fileName}
+        >
+          ✓ {status.fileName} ({status.chunks} chunks)
+        </p>
+      )}
+
+      {status.type === "error" && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {status.message}
+        </p>
+      )}
     </div>
   );
 }

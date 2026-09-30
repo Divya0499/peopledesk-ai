@@ -1,3 +1,4 @@
+import { FileIcon } from "./icons";
 import type { DocumentOption } from "./types";
 
 type DocumentSelectProps = {
@@ -15,20 +16,19 @@ function DocumentSelect({
   disabled,
 }: DocumentSelectProps) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
-      <label
-        htmlFor="document-select"
-        className="shrink-0 text-sm text-zinc-500"
-      >
+    <div className="relative flex items-center">
+      <label htmlFor="document-select" className="sr-only">
         Search in
       </label>
+
+      <FileIcon className="pointer-events-none absolute left-2.5 size-3.5 text-zinc-500" />
 
       <select
         id="document-select"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="min-w-0 flex-1 truncate rounded-lg border border-zinc-300 bg-transparent px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:w-72 dark:border-zinc-700 dark:text-zinc-50 dark:[&>option]:bg-zinc-900"
+        className="max-w-56 cursor-pointer truncate rounded-lg bg-zinc-100 py-1.5 pr-3 pl-7 text-xs font-medium text-zinc-700 outline-none hover:bg-zinc-200 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-72 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:[&>option]:bg-zinc-900"
       >
         <option value="">All documents</option>
 

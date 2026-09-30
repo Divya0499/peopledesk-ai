@@ -1,47 +1,94 @@
 'use client'
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { SendIcon } from "./icons";
 
 type ChatInputProps = {
   onSend: (text: string) => void;
   loading: boolean;
-  // Shown above the text box
+  // Shown inside the composer, left of the send button
   toolbar?: React.ReactNode;
 };
 
+// Tallest the text box grows before it scrolls
+const MAX_HEIGHT = 200;
+
 function ChatInput({ onSend, loading, toolbar }: ChatInputProps) {
   const [message, setMessage] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Grow the text box with its content
+  const resize = () => {
+    const el = textareaRef.current;
+    if (!el) return;
 
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`;
+  };
+
+  const submit = () => {
     const text = message.trim();
     if (!text || loading) return;
 
     onSend(text);
     setMessage("");
+    requestAnimationFrame(resize);
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submit();
+  };
+
+  // Enter sends, Shift+Enter adds a new line
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      submit();
+    }
   };
 
   return (
-    <div className="border-t border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      {toolbar && <div className="mb-3">{toolbar}</div>}
-
-      <form className="mx-auto flex w-full max-w-3xl gap-2" onSubmit={handleSubmit}>
-        <input
-          className="flex-1 rounded-lg border border-zinc-300 bg-transparent px-4 py-2 text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:text-zinc-50"
+    <div className="px-4 pt-2 pb-4">
+      <form
+        className="mx-auto w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-900"
+        onSubmit={handleSubmit}
+      >
+        <textarea
+          ref={textareaRef}
+          rows={1}
+          className="block w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-50"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask something..."
+          onChange={(e) => {
+            setMessage(e.target.value);
+            resize();
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask a question about your documents..."
+          aria-label="Message"
           autoFocus
         />
 
-        <button
-          type="submit"
-          disabled={loading || !message.trim()}
-          className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Sending..." : "Send"}
-        </button>
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <div className="min-w-0">{toolbar}</div>
+
+          <button
+            type="submit"
+            disabled={loading || !message.trim()}
+            aria-label={loading ? "Sending" : "Send"}
+            className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
+          >
+            {loading ? (
+              <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <SendIcon className="size-4" />
+            )}
+          </button>
+        </div>
       </form>
+
+      <p className="mt-2 text-center text-xs text-zinc-400">
+        Answers come from your uploaded PDFs. Check the sources.
+      </p>
     </div>
   );
 }

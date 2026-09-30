@@ -191,14 +191,19 @@ function ChatWindow({
   return (
     <>
       {/* Messages */}
-      <main className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-          <MessageList messages={messages} loading={loading} />
+      <main className="flex-1 overflow-y-auto px-4 py-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+          <MessageList
+            messages={messages}
+            loading={loading}
+            hasDocuments={documents.length > 0}
+            onSuggestion={sendMessage}
+          />
           <div ref={bottomRef} />
         </div>
       </main>
 
-      {/* Input, with the PDF to search above it */}
+      {/* Input, with the PDF to search inside the composer */}
       <ChatInput
         onSend={sendMessage}
         loading={loading}

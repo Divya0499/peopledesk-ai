@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
 import DocumentList from "./DocumentList";
+import { MenuIcon, PlusIcon } from "./icons";
 import PdfUpload from "./PdfUpload";
 import type { ConversationSummary, DocumentOption, Message } from "./types";
 
@@ -44,6 +45,8 @@ function ChatLayout() {
   // Changing the key remounts ChatWindow so it starts from the
   // selected conversation (or empty for a new chat)
   const [chatKey, setChatKey] = useState(0);
+  // Sidebar drawer on small screens; always shown from md up
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // Turn a saved conversation's messages into the chat's message format
   const toMessages = (conversation: ConversationSummary): Message[] =>
     conversation.messages.map((message) => ({
@@ -54,6 +57,7 @@ function ChatLayout() {
 
   const showChat = (conversation: ConversationSummary | null) => {
     setActiveConversation(conversation);
+    setSidebarOpen(false);
     setChatKey((key) => key + 1);
     // Keep the open chat in the URL so a reload brings it back
     window.history.replaceState(
@@ -144,45 +148,60 @@ function ChatLayout() {
   };
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-zinc-50 dark:bg-black">
-      <header className="border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
-          <h1 className="shrink-0 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            My AI App
+    <div className="flex h-dvh w-full bg-white dark:bg-zinc-950">
+      <ConversationSidebar
+        conversations={conversations}
+        activeId={activeConversation?.id}
+        onNewChat={newChat}
+        onSelect={selectConversation}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        footer={
+          <DocumentList
+            documents={documents}
+            onDelete={handleDeleteDocument}
+            upload={<PdfUpload onUploaded={handleUploaded} />}
+          />
+        }
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-100 px-4 dark:border-zinc-900">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open sidebar"
+            className="-ml-1.5 rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 md:hidden dark:hover:bg-zinc-800"
+          >
+            <MenuIcon className="size-5" />
+          </button>
+
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {activeConversation?.title ?? "New chat"}
           </h1>
 
-          <PdfUpload onUploaded={handleUploaded} />
-        </div>
-      </header>
+          <button
+            type="button"
+            onClick={newChat}
+            aria-label="New chat"
+            className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 md:hidden dark:hover:bg-zinc-800"
+          >
+            <PlusIcon className="size-5" />
+          </button>
+        </header>
 
-      <div className="flex min-h-0 flex-1">
-        <ConversationSidebar
-          conversations={conversations}
-          activeId={activeConversation?.id}
-          onNewChat={newChat}
-          onSelect={selectConversation}
-          footer={
-            <DocumentList
-              documents={documents}
-              onDelete={handleDeleteDocument}
-            />
+        <ChatWindow
+          key={chatKey}
+          initialConversationId={activeConversation?.id ?? ""}
+          initialMessages={
+            activeConversation ? toMessages(activeConversation) : []
           }
+          documents={documents}
+          loadingDocuments={loadingDocuments}
+          documentId={documentId}
+          onDocumentChange={setDocumentId}
+          onConversationCreated={handleConversationCreated}
         />
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <ChatWindow
-            key={chatKey}
-            initialConversationId={activeConversation?.id ?? ""}
-            initialMessages={
-              activeConversation ? toMessages(activeConversation) : []
-            }
-            documents={documents}
-            loadingDocuments={loadingDocuments}
-            documentId={documentId}
-            onDocumentChange={setDocumentId}
-            onConversationCreated={handleConversationCreated}
-          />
-        </div>
       </div>
     </div>
   );
