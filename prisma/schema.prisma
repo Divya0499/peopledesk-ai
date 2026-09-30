@@ -44,3 +44,31 @@ model Message {
 
   @@index([conversationId, createdAt])
 }
+
+// Demo data for the function-calling exercise; read by the getLeaveBalance tool.
+model Employee {
+  id                String             @id
+  name              String
+  leaveBalance      Int
+  department        String
+  leaveApplications LeaveApplication[]
+}
+
+enum LeaveStatus {
+  approved
+  rejected
+}
+
+// One row per applyLeave request. The unique requestId lets a retried request
+// be recognised so its days are not deducted twice.
+model LeaveApplication {
+  id        String      @id @default(uuid())
+  userId    String
+  employee  Employee    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days      Int
+  requestId String      @unique
+  status    LeaveStatus
+  createdAt DateTime    @default(now())
+
+  @@index([userId])
+}
