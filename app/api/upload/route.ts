@@ -22,6 +22,13 @@ export async function POST(request: Request) {
       );
     }
 
+    // Previous version of this file, if any; kept until the new one is indexed
+    const existingDocument = await prisma.document.findFirst({
+      where: {
+        fileName: file.name,
+      },
+    });
+
     // Unique ID for this upload, shared by all its chunks
     const documentId = crypto.randomUUID();
 
@@ -71,16 +78,18 @@ export async function POST(request: Request) {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      const embedding = await embedDocument(chunk);
+      const embedding = await embedDocument(chunk.text);
 
       records.push({
         id: `${documentId}-${i}`,
         values: embedding,
         metadata: {
-          text: chunk,
+          text: chunk.text,
           source: file.name,
           documentId,
           chunkIndex: i,
+          // Pinecone metadata can't hold undefined, so only set it when known
+          ...(chunk.section && { section: chunk.section }),
         },
       });
     }
@@ -91,14 +100,6 @@ export async function POST(request: Request) {
 
     const index = getIndex();
 
-    // Re-uploading a file with the same name replaces it,
-    // so remove the previous version's chunks first
-    await index.deleteMany({
-      filter: {
-        source: { $eq: file.name },
-      },
-    });
-
     await index.upsert({
       records,
     });
@@ -107,19 +108,35 @@ export async function POST(request: Request) {
     // 5. Save document in Postgres
     // -----------------------------
 
-    // Same rule as Pinecone: a re-upload replaces the old row
-    await prisma.$transaction([
-      prisma.document.deleteMany({
-        where: { fileName: file.name },
-      }),
-      prisma.document.create({
-        data: {
-          id: documentId,
-          fileName: file.name,
-          chunkCount: chunks.length,
+    await prisma.document.create({
+      data: {
+        id: documentId,
+        fileName: file.name,
+        chunkCount: chunks.length,
+      },
+    });
+
+    // -----------------------------
+    // 6. Remove the previous version
+    // -----------------------------
+
+    // Only once the new version is fully indexed, so a failed
+    // re-upload never leaves the file missing
+    if (existingDocument) {
+      await index.deleteMany({
+        filter: {
+          documentId: {
+            $eq: existingDocument.id,
+          },
         },
-      }),
-    ]);
+      });
+
+      await prisma.document.delete({
+        where: {
+          id: existingDocument.id,
+        },
+      });
+    }
 
     return Response.json({
       message: "PDF uploaded successfully",

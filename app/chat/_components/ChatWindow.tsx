@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import ChatInput from "./ChatInput";
 import DocumentSelect from "./DocumentSelect";
 import MessageList from "./MessageList";
-import type { DocumentOption, Message } from "./types";
+import type { DocumentOption, Message, Source } from "./types";
 
 type ChatWindowProps = {
   documents: DocumentOption[];
@@ -11,6 +11,10 @@ type ChatWindowProps = {
   // "" means search all documents
   documentId: string;
   onDocumentChange: (documentId: string) => void;
+  // A saved conversation to continue; "" and [] for a new chat
+  initialConversationId: string;
+  initialMessages: Message[];
+  onConversationCreated: (conversationId: string) => void;
 };
 
 function ChatWindow({
@@ -18,15 +22,41 @@ function ChatWindow({
   loadingDocuments,
   documentId,
   onDocumentChange,
+  initialConversationId,
+  initialMessages,
+  onConversationCreated,
 }: ChatWindowProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [loading, setLoading] = useState(false);
+  // "" until the first message creates a conversation
+  const [conversationId, setConversationId] = useState(initialConversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Scroll to the newest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  const createConversation = async (title: string): Promise<string> => {
+    const response = await fetch("/api/conversations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error ?? "Failed to create conversation");
+    }
+
+    setConversationId(data.conversation.id);
+    onConversationCreated(data.conversation.id);
+
+    return data.conversation.id;
+  };
 
   const sendMessage = async (text: string) => {
     const userMessage = {
@@ -42,6 +72,18 @@ function ChatWindow({
     setLoading(true);
 
     try {
+      let currentConversationId = conversationId;
+
+      // First question: create the conversation before sending it
+      if (!currentConversationId) {
+        // Title the chat after its first question, kept short for the sidebar
+        const question = text.trim();
+        const title =
+          question.length > 40 ? `${question.slice(0, 40).trimEnd()}…` : question;
+
+        currentConversationId = await createConversation(title);
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -49,9 +91,13 @@ function ChatWindow({
         },
         body: JSON.stringify({
           // Error messages are only for the UI, don't send them to the AI
-          messages: conversation.filter((m) => m.role !== "error"),
+          messages: conversation
+            .filter((m) => m.role !== "error")
+            // Sources are only for the UI, send just the chat text
+            .map(({ role, text }) => ({ role, text })),
           // Omitted when "All documents" is selected
           documentId: documentId || undefined,
+          conversationId: currentConversationId,
         }),
       });
 
@@ -78,6 +124,22 @@ function ChatWindow({
       const decoder = new TextDecoder();
 
       let result = "";
+      let sources: Source[] | undefined;
+      // Holds a JSON line that was split across two network chunks
+      let buffer = "";
+
+      const updateAiMessage = () =>
+        setMessages((prev) => {
+          const updated = [...prev];
+
+          updated[updated.length - 1] = {
+            role: "ai",
+            text: result,
+            sources,
+          };
+
+          return updated;
+        });
 
       while (true) {
         const { value, done } = await reader.read();
@@ -86,22 +148,30 @@ function ChatWindow({
           break;
         }
 
-        const chunk = decoder.decode(value, {
+        buffer += decoder.decode(value, {
           stream: true,
         });
 
-        result += chunk;
+        // The server sends one JSON event per line; the last piece may be
+        // an incomplete line, so keep it for the next chunk
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
-        setMessages((prev) => {
-          const updated = [...prev];
+        for (const line of lines) {
+          if (!line.trim()) {
+            continue;
+          }
 
-          updated[updated.length - 1] = {
-            role: "ai",
-            text: result,
-          };
+          const event = JSON.parse(line);
 
-          return updated;
-        });
+          if (event.type === "text") {
+            result += event.text;
+          } else if (event.type === "sources") {
+            sources = event.sources;
+          }
+        }
+
+        updateAiMessage();
       }
     } catch (err) {
       const errorText =

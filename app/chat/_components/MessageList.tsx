@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import SourceList from "./SourceList";
 import type { Message } from "./types";
 
 type MessageListProps = {
@@ -24,10 +25,14 @@ function MessageList({ messages, loading }: MessageListProps) {
             </div>
           </div>
         ) : msg.role === "ai" ? (
-          <div key={i} className="flex justify-start">
+          <div key={i} className="flex flex-col items-start gap-2">
             <div className="prose prose-zinc max-w-full rounded-2xl rounded-bl-sm bg-white px-4 py-2 shadow-sm dark:prose-invert dark:bg-zinc-800">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
             </div>
+
+            {msg.sources && msg.sources.length > 0 && (
+              <SourceList sources={msg.sources} />
+            )}
           </div>
         ) : (
           <div key={i} className="flex justify-start">

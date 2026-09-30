@@ -1,5 +1,10 @@
 import { ai, CHAT_MODEL, embedQuery } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
+import { prisma } from "@/lib/prisma";
+
+// Matches scoring below this are too weakly related to use as context.
+// A starting point, tuned by testing real questions against the documents.
+const MIN_SCORE = 0.5;
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -11,6 +16,18 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const messages: ChatMessage[] = body.messages;
+    const conversationId = body.conversationId;
+
+    if (typeof conversationId !== "string" || !conversationId.trim()) {
+      return Response.json(
+        {
+          error: "Conversation is required",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json(
@@ -36,6 +53,15 @@ export async function POST(request: Request) {
         },
       );
     }
+
+    // Save the user's question to the conversation
+    await prisma.message.create({
+      data: {
+        conversationId,
+        role: "user",
+        text: question,
+      },
+    });
 
     // --------------------------------
     // 1. Create embedding for question
@@ -65,11 +91,21 @@ export async function POST(request: Request) {
     });
 
     // --------------------------------
-    // 3. Get relevant documents
+    // 3. Get relevant chunks (also the answer's sources)
     // --------------------------------
 
-    const documents = (searchResult.matches ?? [])
+    const matches = searchResult.matches ?? [];
+
+    // Logged before filtering, to help tune MIN_SCORE
+    console.log(
+      "Retrieval scores:",
+      matches.map((match) => match.score?.toFixed(3)),
+    );
+
+    const sources = matches
+      .filter((match) => (match.score ?? 0) >= MIN_SCORE)
       .map((match) => ({
+        id: match.id,
         text: match.metadata?.text,
         // Documents from /api/ingest have no source or chunkIndex
         source: match.metadata?.source ?? "Company notes",
@@ -79,7 +115,7 @@ export async function POST(request: Request) {
       .filter((doc) => doc.text);
 
     // Label each chunk with where it came from
-    const context = documents
+    const context = sources
       .map(
         (doc) => `
 Source: ${doc.source}
@@ -93,7 +129,6 @@ ${doc.text}
     // --------------------------------
     // 4. Build instructions + chat history for Gemini
     // --------------------------------
-console.log(documents,"dwwef");
     const systemInstruction = `
 You are a helpful company knowledge assistant.
 
@@ -132,15 +167,38 @@ ${context}
 
     const encoder = new TextEncoder();
 
+    // Each event is one JSON object per line (NDJSON), so text and
+    // sources can share one stream
+    const encodeEvent = (event: object) =>
+      encoder.encode(JSON.stringify(event) + "\n");
+
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
+          // Collect the full answer so it can be saved once streaming ends
+          let result = "";
+
           for await (const chunk of stream) {
             const text = chunk.text;
 
             if (text) {
-              controller.enqueue(encoder.encode(text));
+              result += text;
+              controller.enqueue(encodeEvent({ type: "text", text }));
             }
+          }
+
+          // Sent after the answer so the UI can list them under it
+          controller.enqueue(encodeEvent({ type: "sources", sources }));
+
+          if (result) {
+            await prisma.message.create({
+              data: {
+                conversationId,
+                role: "ai",
+                text: result,
+                sources,
+              },
+            });
           }
 
           controller.close();
@@ -152,7 +210,7 @@ ${context}
 
     return new Response(readableStream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/x-ndjson; charset=utf-8",
       },
     });
   } catch (error) {
