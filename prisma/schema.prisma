@@ -72,3 +72,16 @@ model LeaveApplication {
 
   @@index([userId])
 }
+
+// Long-term facts about a user (e.g. response_style → "short answers").
+// One row per (userId, key), so saving an existing key updates it in place.
+model UserMemory {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
