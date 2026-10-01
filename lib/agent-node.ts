@@ -3,11 +3,12 @@ import { SystemMessage } from "@langchain/core/messages";
 import type { GraphState } from "./graph-state";
 import { createModelWithTools } from "./graph-tools";
 import { createApplyLeaveTool } from "./langchain-tools";
+import { getMemories } from "./memory";
 
 // Tools say what the agent can do; the system prompt says how it behaves.
 // The leave rules are explicit because "apply leave" also matches the
 // handbook, and a policy answer must not read as a submitted application.
-function systemPrompt(userId: string) {
+function systemPrompt(userId: string, memoryContext: string) {
   return `
 You are an HR assistant.
 
@@ -38,17 +39,21 @@ When the user wants to apply for, request, submit, or take leave:
 
 You have access to user memory tools.
 
+Relevant long-term user memories:
+${memoryContext}
+
 Memory rules:
-- Use getMemory when a user's previously saved preference or information
-  is relevant to the current request.
-- Save information with saveMemory when the user explicitly asks you
-  to remember something for future conversations.
-- Do not save every message or temporary information.
-- Never invent memories.
+- Use these memories when relevant to the user's request, e.g. follow a
+  saved response_style in every answer.
+- Use only memories relevant to the current request.
+- Do not mention or expose unrelated memories.
 - If no relevant memory exists, continue normally.
+- Save information only when the user explicitly asks you to remember it.
+- Do not save temporary information, or employee data the HR tools already
+  provide (such as department or leave balance).
+- Never invent memories.
 - Use short snake_case keys and reuse the same key for the same kind of
-  information (e.g. response_style for how the user wants answers), so a
-  later getMemory finds it.
+  information (e.g. response_style for how the user wants answers).
 `;
 }
 
@@ -62,10 +67,17 @@ export async function agentNode(state: typeof GraphState.State) {
     createApplyLeaveTool(state.requestId),
   );
 
+  // Loaded on every run rather than left to a tool call: Gemini doesn't
+  // reliably think to look up a preference like response_style by itself
+  const memories = await getMemories(state.userId);
+  const memoryContext = memories.length
+    ? memories.map((memory) => `- ${memory.key}: ${memory.value}`).join("\n")
+    : "No saved memories.";
+
   // Sent with every call but not saved in the state, so the stored history
   // stays just the conversation
   const response = await modelWithTools.invoke([
-    new SystemMessage(systemPrompt(state.userId)),
+    new SystemMessage(systemPrompt(state.userId, memoryContext)),
     ...state.messages,
   ]);
 

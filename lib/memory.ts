@@ -31,3 +31,15 @@ export async function getMemory(userId: string, key: string) {
     },
   });
 }
+
+// Every memory saved for this user, most recently updated first, or [] if none
+export async function getMemories(userId: string) {
+  return await prisma.userMemory.findMany({
+    where: {
+      userId,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+}

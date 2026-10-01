@@ -7,7 +7,11 @@ import {
   getLeaveBalanceTool,
   getLeavePolicyTool,
 } from "./langchain-tools";
-import { getMemoryTool, saveMemoryTool } from "./memory-tools";
+import {
+  getMemoriesTool,
+  getMemoryTool,
+  saveMemoryTool,
+} from "./memory-tools";
 
 // One list for both graph nodes: the agent node binds these (so Gemini can
 // ask for them) and the tool node runs them, so the two can't drift apart.
@@ -18,6 +22,7 @@ export const graphTools = [
   getLeavePolicyTool,
   searchCompanyDocsTool,
   getMemoryTool,
+  getMemoriesTool,
   saveMemoryTool,
 ];
 

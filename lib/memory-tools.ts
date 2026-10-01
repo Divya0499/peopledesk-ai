@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { getMemory, saveMemory } from "./memory";
+import { getMemories, getMemory, saveMemory } from "./memory";
 
 // LLM-callable wrappers around lib/memory.ts, so the agent can decide when to
 // remember something about a user and when to look it up again.
@@ -48,6 +48,29 @@ export const getMemoryTool = tool(
     schema: z.object({
       userId: z.string().describe("The user's ID"),
       key: z.string().describe("What the memory is about, e.g. response_style"),
+    }),
+  },
+);
+
+// Returns every memory at once, so the agent doesn't have to guess the exact
+// key that getMemory needs
+export const getMemoriesTool = tool(
+  async ({ userId }) => {
+    const memories = await getMemories(userId);
+
+    return {
+      found: memories.length > 0,
+      memories: memories.map((memory) => ({
+        key: memory.key,
+        value: memory.value,
+      })),
+    };
+  },
+  {
+    name: "getMemories",
+    description: "Retrieve all saved long-term memories for a user.",
+    schema: z.object({
+      userId: z.string().describe("The user's ID"),
     }),
   },
 );
