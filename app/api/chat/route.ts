@@ -1,12 +1,8 @@
 import { ApiError } from "@google/genai";
-import { ai, CHAT_MODEL, embedQuery } from "@/lib/gemini";
-import { getIndex } from "@/lib/pinecone";
+import { ai, CHAT_MODEL } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { rerankChunks } from "@/lib/rerank";
-
-// Matches scoring below this are too weakly related to use as context.
-// A starting point, tuned by testing real questions against the documents.
-const MIN_SCORE = 0.5;
+import { searchChunks } from "@/lib/retrieval";
 
 // Give up on reranking after this long and answer with Pinecone's order,
 // so a slow reranker can't hold up the chat
@@ -66,13 +62,7 @@ export async function POST(request: Request) {
     }
 
     // --------------------------------
-    // 1. Create embedding for question
-    // --------------------------------
-
-    const questionEmbedding = await embedQuery(question);
-
-    // --------------------------------
-    // 2. Search Pinecone
+    // 1–3. Search Pinecone for related chunks (also the answer's sources)
     // --------------------------------
 
     // Optional: only search chunks from one uploaded PDF
@@ -81,41 +71,8 @@ export async function POST(request: Request) {
         ? body.documentId
         : undefined;
 
-    const searchResult = await getIndex().query({
-      vector: questionEmbedding,
-      topK: 5,
-      includeMetadata: true,
-      ...(documentId && {
-        filter: {
-          documentId: { $eq: documentId },
-        },
-      }),
-    });
-
-    // --------------------------------
-    // 3. Get relevant chunks (also the answer's sources)
-    // --------------------------------
-
-    const matches = searchResult.matches ?? [];
-
-    // Logged before filtering, to help tune MIN_SCORE
-    console.log(
-      "Retrieval scores:",
-      matches.map((match) => match.score?.toFixed(3)),
-    );
-
-    const candidates = matches
-      .filter((match) => (match.score ?? 0) >= MIN_SCORE)
-      .map((match) => ({
-        id: match.id,
-        text: String(match.metadata?.text ?? ""),
-        // Documents from /api/ingest have no source or chunkIndex
-        source: match.metadata?.source ?? "Company notes",
-        chunkIndex: match.metadata?.chunkIndex ?? 0,
-        section: match.metadata?.section as string | undefined,
-        score: match.score,
-      }))
-      .filter((doc) => doc.text);
+    // Embeds the question, queries Pinecone and drops weak matches
+    const candidates = await searchChunks(question, { documentId });
 
     // --------------------------------
     // 4. Rerank: keep only chunks that help answer the question

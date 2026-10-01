@@ -7,11 +7,22 @@ export type Source = {
   score?: number;
 };
 
+// A leave application the HR assistant paused on, waiting for the person
+// to approve or reject it (from /api/langgraph-test's pending_approval)
+export type Approval = {
+  // Sent back to /api/langgraph-test/resume to continue the paused run
+  threadId: string;
+  userId: string;
+  days: number;
+  status: "pending" | "approved" | "rejected";
+};
+
 export type Message = {
   role: "user" | "ai" | "error";
   text: string;
   // The chunks an AI answer was based on
   sources?: Source[];
+  approval?: Approval;
 };
 
 // An uploaded PDF, as returned by GET /api/documents

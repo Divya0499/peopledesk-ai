@@ -7,12 +7,21 @@ type ChatInputProps = {
   loading: boolean;
   // Shown inside the composer, left of the send button
   toolbar?: React.ReactNode;
+  placeholder?: string;
+  // The note under the composer
+  hint?: string;
 };
 
 // Tallest the text box grows before it scrolls
 const MAX_HEIGHT = 200;
 
-function ChatInput({ onSend, loading, toolbar }: ChatInputProps) {
+function ChatInput({
+  onSend,
+  loading,
+  toolbar,
+  placeholder = "Ask a question about your documents...",
+  hint = "Answers come from your uploaded PDFs. Check the sources.",
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -63,7 +72,7 @@ function ChatInput({ onSend, loading, toolbar }: ChatInputProps) {
             resize();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your documents..."
+          placeholder={placeholder}
           aria-label="Message"
           autoFocus
         />
@@ -87,7 +96,7 @@ function ChatInput({ onSend, loading, toolbar }: ChatInputProps) {
       </form>
 
       <p className="mt-2 text-center text-xs text-zinc-400">
-        Answers come from your uploaded PDFs. Check the sources.
+        {hint}
       </p>
     </div>
   );

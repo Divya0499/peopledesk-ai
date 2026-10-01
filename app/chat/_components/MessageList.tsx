@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import ApprovalCard from "./ApprovalCard";
 import { SparkIcon } from "./icons";
 import SourceList from "./SourceList";
 import type { Message } from "./types";
@@ -10,6 +11,8 @@ type MessageListProps = {
   hasDocuments: boolean;
   // Sends one of the starter questions from the empty state
   onSuggestion: (text: string) => void;
+  // Approve or reject the leave application in the message at this index
+  onApprovalDecision: (index: number, approved: boolean) => void;
 };
 
 const SUGGESTIONS = [
@@ -32,6 +35,7 @@ function MessageList({
   loading,
   hasDocuments,
   onSuggestion,
+  onApprovalDecision,
 }: MessageListProps) {
   const last = messages[messages.length - 1];
   // Show the typing dots until the answer's first words arrive
@@ -93,6 +97,14 @@ function MessageList({
 
                 {msg.sources && msg.sources.length > 0 && (
                   <SourceList sources={msg.sources} />
+                )}
+
+                {msg.approval && (
+                  <ApprovalCard
+                    approval={msg.approval}
+                    disabled={loading}
+                    onDecision={(approved) => onApprovalDecision(i, approved)}
+                  />
                 )}
               </div>
             </div>

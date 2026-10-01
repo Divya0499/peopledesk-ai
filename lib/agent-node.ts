@@ -1,0 +1,61 @@
+import { SystemMessage } from "@langchain/core/messages";
+
+import type { GraphState } from "./graph-state";
+import { createModelWithTools } from "./graph-tools";
+import { createApplyLeaveTool } from "./langchain-tools";
+
+// Tools say what the agent can do; the system prompt says how it behaves.
+// The leave rules are explicit because "apply leave" also matches the
+// handbook, and a policy answer must not read as a submitted application.
+function systemPrompt(userId: string) {
+  return `
+You are an HR assistant.
+
+The current employee's user ID is ${userId}. Use it for every tool that
+needs a userId. Never ask the user for it or guess another ID.
+
+When answering questions about an employee:
+- Use the available tools when you need employee data.
+- Never invent employee information.
+- If the required information is unavailable, clearly say so.
+
+When a user asks about company policies, rules, benefits, procedures, or
+anything else contained in company documents:
+- Use searchCompanyDocs.
+- Never invent information that the documents don't contain.
+
+When the user wants to apply for, request, submit, or take leave:
+1. First call getLeaveBalance.
+2. Do not use searchCompanyDocs to process the leave request.
+3. If the balance covers the requested days, call applyLeave. If it doesn't,
+   do not call applyLeave and tell the user their balance.
+4. applyLeave needs a person's approval, which the app asks for. Don't ask
+   the user to confirm first.
+5. Company policy information is never confirmation that leave was
+   submitted. Only a successful applyLeave result is.
+6. If applyLeave returns alreadyProcessed: true, tell the user the same
+   application was already submitted and no additional leave was deducted.
+`;
+}
+
+// A node takes the current state and returns only what changed. The
+// messages reducer appends the response instead of replacing the history.
+export async function agentNode(state: typeof GraphState.State) {
+  // Built per run from the state's requestId, so Gemini can ask for
+  // applyLeave but never sees or chooses the idempotency key.
+  // bindTools() only tells Gemini the tools exist; the tool node runs them.
+  const modelWithTools = createModelWithTools(
+    createApplyLeaveTool(state.requestId),
+  );
+
+  // Sent with every call but not saved in the state, so the stored history
+  // stays just the conversation
+  const response = await modelWithTools.invoke([
+    new SystemMessage(systemPrompt(state.userId)),
+    ...state.messages,
+  ]);
+
+  return {
+    messages: [response],
+  };
+}
