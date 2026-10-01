@@ -2,24 +2,26 @@ import { createAgent } from "langchain";
 import { model } from "./langchain-model";
 import {
   createApplyLeaveTool,
-  getEmployeeDetailsTool,
-  getLeaveBalanceTool,
+  createGetEmployeeDetailsTool,
+  createGetLeaveBalanceTool,
   getLeavePolicyTool,
 } from "./langchain-tools";
 import { searchCompanyDocsTool } from "./langchain-rag-tool";
+import { UNTRUSTED_TOOL_RESULT_RULES } from "./untrusted-content";
 
 // The agent runs the tool loop itself: call the model, run any tools it asks
 // for, send the results back, and repeat until the model answers in text.
 // It takes the plain model (not modelWithTools) and binds the tools itself.
-// Created per request because applyLeave needs that request's requestId.
-export function createLeaveAgent(requestId: string) {
+// Created per request because the HR tools need that request's userId and
+// applyLeave also its requestId.
+export function createLeaveAgent(userId: string, requestId: string) {
   return createAgent({
     model,
     tools: [
-      getLeaveBalanceTool,
-      getEmployeeDetailsTool,
+      createGetLeaveBalanceTool(userId),
+      createGetEmployeeDetailsTool(userId),
       getLeavePolicyTool,
-      createApplyLeaveTool(requestId),
+      createApplyLeaveTool(userId, requestId),
       // RAG as a tool: the agent decides when to search the documents
       searchCompanyDocsTool,
     ],
@@ -42,6 +44,8 @@ When a user asks to apply for leave:
 2. Only call applyLeave if the requested days are less than or equal to the available balance.
 3. If there is not enough balance, do not call applyLeave.
 4. If applyLeave returns alreadyProcessed: true, tell the user that the same application was already submitted and no additional leave was deducted.
+
+${UNTRUSTED_TOOL_RESULT_RULES}
 `,
   });
 }

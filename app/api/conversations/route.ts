@@ -1,8 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 
+// Only the caller's own conversations, from the signed session cookie
 export async function GET() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const conversations = await prisma.conversation.findMany({
+      where: {
+        userId: user.userId,
+      },
       orderBy: {
         createdAt: "desc",
       },
@@ -23,22 +34,27 @@ export async function GET() {
 
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to fetch conversations",
+        error: "Internal server error",
       },
       { status: 500 }
     );
   }
 }
 
+// The owner is always the session's user, never a userId from the body
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
     const conversation = await prisma.conversation.create({
       data: {
+        userId: user.userId,
         title: body.title ?? "New Conversation",
       },
     });
@@ -51,10 +67,7 @@ export async function POST(request: Request) {
 
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to create conversation",
+        error: "Internal server error",
       },
       { status: 500 }
     );

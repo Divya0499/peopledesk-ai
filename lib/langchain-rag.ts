@@ -7,6 +7,10 @@ import { RunnableLambda, RunnablePassthrough } from "@langchain/core/runnables";
 import { model } from "./langchain-model";
 import { rerankDocuments } from "./langchain-reranker";
 import { PineconeRetriever } from "./langchain-retriever";
+import {
+  formatUntrustedDocuments,
+  RAG_CHAIN_SYSTEM_PROMPT,
+} from "./untrusted-content";
 
 // Give up on reranking after this long and use Pinecone's order, so a slow
 // reranker can't hold up the answer (same limit as /api/chat)
@@ -21,18 +25,10 @@ type RagInput = {
 // Searches every uploaded document
 const retriever = new PineconeRetriever();
 
+// The documents go in as a marked block of untrusted data, with rules saying
+// never to follow instructions inside them (see untrusted-content.ts)
 const prompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are a helpful assistant.
-
-Answer the question using only the provided context.
-If the answer is not present in the context, say:
-"I couldn't find that information in the provided documents."
-
-Context:
-{context}`,
-  ],
+  ["system", RAG_CHAIN_SYSTEM_PROMPT],
   ["placeholder", "{history}"],
   ["human", "{question}"],
 ]);
@@ -77,7 +73,12 @@ const retrieveAndRerank = RunnableLambda.from(
 );
 
 const formatDocuments = (documents: Document[]) =>
-  documents.map((doc) => doc.pageContent).join("\n\n");
+  formatUntrustedDocuments(
+    documents.map((doc) => ({
+      label: `${doc.metadata.source} · ${doc.metadata.section}`,
+      text: doc.pageContent,
+    })),
+  );
 
 // Same text the prompt tells Gemini to give when the context lacks the answer
 const NOT_FOUND_ANSWER =

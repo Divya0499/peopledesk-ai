@@ -1,0 +1,34 @@
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+import { createMcpAgent } from "./mcp-agent";
+
+// The MCP agent wrapped as a supervisor tool, like askHrAgent but backed by
+// MCP: the supervisor writes the request, the MCP agent answers it through
+// the MCP server, and only its final answer comes back.
+// Built per request because the MCP agent needs that request's userId.
+export function createAskMcpHrAgentTool(userId: string) {
+  return tool(
+    async ({ request }) => {
+      const { agent, client } = await createMcpAgent(userId);
+
+      try {
+        const result = await agent.invoke({
+          messages: [{ role: "user", content: request }],
+        });
+        // .text rather than .content: Gemini's content can be an array of parts
+        return result.messages[result.messages.length - 1].text;
+      } finally {
+        // Stops the MCP server process started for this call
+        await client.close();
+      }
+    },
+    {
+      name: "askMcpHrAgent",
+      description:
+        "Delegate employee-specific HR questions (the current employee's leave balance) or leave policy questions to an MCP-backed HR agent.",
+      schema: z.object({
+        request: z.string().describe("The HR task to delegate"),
+      }),
+    },
+  );
+}

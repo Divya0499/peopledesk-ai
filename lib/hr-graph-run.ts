@@ -69,7 +69,7 @@ export function graphErrorResponse(error: unknown) {
 
   return NextResponse.json(
     {
-      error: error instanceof Error ? error.message : "Something went wrong",
+      error: "Internal server error",
     },
     { status: 500 },
   );

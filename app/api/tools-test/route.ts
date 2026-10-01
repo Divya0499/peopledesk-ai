@@ -1,5 +1,6 @@
 import type { Content, FunctionCall } from "@google/genai";
 import { ai, CHAT_MODEL } from "@/lib/gemini";
+import { getCurrentUser } from "@/lib/session";
 import {
   applyLeave,
   getEmployeeDetails,
@@ -13,6 +14,17 @@ import {
 const MAX_ROUNDS = 5;
 
 export async function POST(request: Request) {
+  // Who the caller is comes only from the signed session cookie. Neither a
+  // userId in the body nor one Gemini puts in a tool call is used, so a caller
+  // or an injected prompt can't act as another employee.
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = user.userId;
+
   // Chosen by the client or the app, never by Gemini. A client retrying the
   // same leave application resends its Idempotency-Key, so applyLeave can
   // recognise the repeat and not deduct the days twice. `||` rather than `??`
@@ -24,7 +36,6 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const question = body.question;
-    const userId = body.userId ?? "user-123";
 
     if (typeof question !== "string" || !question.trim()) {
       return Response.json(
@@ -43,9 +54,10 @@ export async function POST(request: Request) {
     };
 
     const config = {
-      // Gemini can't guess who "I" is, so tell it the current user's ID.
-      // The leave rules are business rules Gemini won't follow unless told.
-      systemInstruction: `The current user's ID is ${userId}.
+      // The tools already act on the session's user, so Gemini isn't told any
+      // user ID. The leave rules are business rules Gemini won't follow unless
+      // told.
+      systemInstruction: `The tools always act on the current user, so never ask the user for their ID.
 
 When a user asks to apply for leave:
 1. Always check their leave balance first using getLeaveBalance.
@@ -85,13 +97,12 @@ When a user asks to apply for leave:
         });
       }
 
-      // Gemini only asks for a tool. We decide whether and how to run it.
+      // Gemini only asks for a tool. We decide whether and how to run it, and
+      // always for the session's userId: any userId in the args is ignored.
       const toolResults = await Promise.all(
         functionCalls.map(async (functionCall) => {
           if (functionCall.name === "getLeaveBalance") {
-            const result = await getLeaveBalance(
-              String(functionCall.args?.userId),
-            );
+            const result = await getLeaveBalance(userId);
 
             return {
               id: functionCall.id,
@@ -101,9 +112,7 @@ When a user asks to apply for leave:
           }
 
           if (functionCall.name === "getEmployeeDetails") {
-            const result = await getEmployeeDetails(
-              String(functionCall.args?.userId),
-            );
+            const result = await getEmployeeDetails(userId);
 
             return {
               id: functionCall.id,
@@ -126,7 +135,7 @@ When a user asks to apply for leave:
 
           if (functionCall.name === "applyLeave") {
             const result = await applyLeave(
-              String(functionCall.args?.userId),
+              userId,
               Number(functionCall.args?.days),
               requestId,
             );
@@ -188,7 +197,7 @@ When a user asks to apply for leave:
 
     return Response.json(
       {
-        error: error instanceof Error ? error.message : "Something went wrong",
+        error: "Internal server error",
       },
       {
         status: 500,

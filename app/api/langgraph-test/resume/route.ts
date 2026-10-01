@@ -7,11 +7,19 @@ import {
   graphErrorResponse,
   graphResponse,
 } from "@/lib/hr-graph-run";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 
 // Resumes a run paused at the approval node with the person's decision:
 // approved → applyLeave runs, rejected → a rejection reply, without touching
 // the database.
 export async function POST(req: Request) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { threadId, approved } = await req.json();
 
@@ -28,6 +36,19 @@ export async function POST(req: Request) {
         { error: "approved must be true or false" },
         { status: 400 },
       );
+    }
+
+    // A threadId alone proves nothing: only the user who started the run may
+    // approve or reject it. Ownership was recorded when the run started.
+    // Matched on both id and owner, so another user's thread gets the same 404
+    // as one that doesn't exist and its existence isn't revealed.
+    const thread = await prisma.agentThread.findFirst({
+      where: { id: threadId, userId: user.userId },
+      select: { id: true },
+    });
+
+    if (!thread) {
+      return NextResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
     const config = graphConfig(threadId);

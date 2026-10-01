@@ -3,8 +3,24 @@ import { embedDocument } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
 import { chunkText } from "@/lib/chunkText";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 
+// Uploaded documents feed every user's RAG answers, so only admins may add
+// or replace them. Checked before the file is read, so a rejected caller
+// costs no parsing or embedding.
 export async function POST(request: Request) {
+  // Who the caller is and their role come only from the session; the role is
+  // read from the database on each request, not from the cookie
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     // Returns null if the request isn't multipart/form-data
     const formData = await request.formData().catch(() => null);
@@ -149,10 +165,7 @@ export async function POST(request: Request) {
 
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong",
+        error: "Internal server error",
       },
       {
         status: 500,

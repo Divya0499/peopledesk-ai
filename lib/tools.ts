@@ -1,13 +1,23 @@
 import { Type, type Tool } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type LeaveStatus } from "@/lib/generated/prisma/client";
+import { withRetry } from "@/lib/retry";
 
 export async function getLeaveBalance(userId: string) {
   console.log("getLeaveBalance called for:", userId);
 
-  const employee = await prisma.employee.findUnique({
-    where: { id: userId },
-  });
+  // Timed to compare with the agent's total: Date.now() rather than
+  // console.time, whose global labels clash when requests overlap
+  const startedAt = Date.now();
+
+  // A read, so safe to retry if the database briefly fails
+  const employee = await withRetry(() =>
+    prisma.employee.findUnique({
+      where: { id: userId },
+    }),
+  );
+
+  console.log(`getLeaveBalance: ${Date.now() - startedAt}ms`);
 
   if (!employee) {
     return {
@@ -205,37 +215,27 @@ export async function applyLeave(
   }
 }
 
-// Describes getLeaveBalance to Gemini. Gemini never runs the function itself;
-// it only asks us to call it, and we run it and send back the result.
+// Describes the tools to Gemini. Gemini never runs a function itself; it only
+// asks us to call it, and we run it and send back the result.
+// None of them take a userId: the route runs them for the session's user, so
+// no prompt or injected text can make Gemini pick another employee.
 export const tools: Tool[] = [
   {
     functionDeclarations: [
       {
         name: "getLeaveBalance",
-        description: "Get the leave balance for an employee",
+        description: "Get the current employee's leave balance",
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            userId: {
-              type: Type.STRING,
-              description: "The employee's user ID",
-            },
-          },
-          required: ["userId"],
+          properties: {},
         },
       },
       {
         name: "getEmployeeDetails",
-        description: "Get the details of an employee",
+        description: "Get the current employee's details",
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            userId: {
-              type: Type.STRING,
-              description: "The employee's user ID",
-            },
-          },
-          required: ["userId"],
+          properties: {},
         },
       },
       {
@@ -255,20 +255,16 @@ export const tools: Tool[] = [
       },
       {
         name: "applyLeave",
-        description: "Submit a leave application for an employee",
+        description: "Submit a leave application for the current employee",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            userId: {
-              type: Type.STRING,
-              description: "The employee's user ID",
-            },
             days: {
               type: Type.NUMBER,
               description: "Number of leave days to apply for",
             },
           },
-          required: ["userId", "days"],
+          required: ["days"],
         },
       },
     ],

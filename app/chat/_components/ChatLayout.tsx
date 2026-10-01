@@ -4,6 +4,7 @@ import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
 import DocumentList from "./DocumentList";
 import { MenuIcon, PlusIcon } from "./icons";
+import LogoutButton from "./LogoutButton";
 import PdfUpload from "./PdfUpload";
 import type { ConversationSummary, DocumentOption, Message } from "./types";
 
@@ -188,6 +189,8 @@ function ChatLayout() {
           >
             <PlusIcon className="size-5" />
           </button>
+
+          <LogoutButton />
         </header>
 
         <ChatWindow

@@ -1,17 +1,22 @@
 import { isAIMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
 import { createHrAgent } from "@/lib/hr-agent";
+import { getCurrentUser } from "@/lib/session";
 
 // Calls the HR specialist agent directly, without a supervisor, to check it
 // works on its own before anything else routes questions to it.
 export async function POST(req: Request) {
+  // Who the caller is comes only from the signed session cookie. A userId in
+  // the body is ignored, so a caller can't act as another employee.
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const question = body.question;
-    // No auth yet: like /api/langgraph-test, default to the demo employee.
-    // Once there are logins this must come from the session, not the body.
-    const userId =
-      typeof body.userId === "string" && body.userId ? body.userId : "user-123";
 
     if (typeof question !== "string" || !question.trim()) {
       return NextResponse.json(
@@ -20,7 +25,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const agent = createHrAgent(userId);
+    const agent = createHrAgent(user.userId);
 
     const result = await agent.invoke({
       messages: [{ role: "user", content: question }],
@@ -45,7 +50,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Something went wrong",
+        error: "Internal server error",
       },
       { status: 500 },
     );

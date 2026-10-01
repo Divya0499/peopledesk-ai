@@ -8,34 +8,37 @@ import {
 } from "./tools";
 
 // Wraps the existing getLeaveBalance so the Prisma query stays in lib/tools.ts.
-// The zod schema is the tool's input: it tells Gemini what to send and
-// rejects anything else (e.g. a numeric userId) before the function runs.
-export const getLeaveBalanceTool = tool(
-  async ({ userId }) => {
-    return await getLeaveBalance(userId);
-  },
-  {
-    name: "getLeaveBalance",
-    description: "Get the current leave balance of an employee.",
-    schema: z.object({
-      userId: z.string().describe("The employee's user ID"),
-    }),
-  },
-);
+// Built per request with the current employee's userId, which comes from the
+// login session (getCurrentUser), never from the model: the schema has
+// no userId, so no prompt, user message or retrieved document can make the
+// model look up another employee.
+export function createGetLeaveBalanceTool(userId: string) {
+  return tool(
+    async () => {
+      return await getLeaveBalance(userId);
+    },
+    {
+      name: "getLeaveBalance",
+      description: "Get the current employee's leave balance.",
+      schema: z.object({}),
+    },
+  );
+}
 
-export const getEmployeeDetailsTool = tool(
-  async ({ userId }) => {
-    return await getEmployeeDetails(userId);
-  },
-  {
-    name: "getEmployeeDetails",
-    description:
-      "Get employee details including name, department, and leave balance.",
-    schema: z.object({
-      userId: z.string().describe("The employee's user ID"),
-    }),
-  },
-);
+// Same as getLeaveBalance: the userId is fixed when the tool is built
+export function createGetEmployeeDetailsTool(userId: string) {
+  return tool(
+    async () => {
+      return await getEmployeeDetails(userId);
+    },
+    {
+      name: "getEmployeeDetails",
+      description:
+        "Get the current employee's details including name, department, and leave balance.",
+      schema: z.object({}),
+    },
+  );
+}
 
 // Takes a department, not a userId, so the agent must first look up the
 // employee's department with getEmployeeDetails before it can call this.
@@ -54,18 +57,18 @@ export const getLeavePolicyTool = tool(
 
 // An action tool: it writes to PostgreSQL. applyLeave() still enforces the
 // leave rules and idempotency itself.
-// Built per request so the application supplies requestId: the model only
-// sees userId and days, and can't choose or change the idempotency key.
-export function createApplyLeaveTool(requestId: string) {
+// Built per request so the application supplies both userId and requestId:
+// the model only chooses days, so it can't apply leave for someone else or
+// choose or change the idempotency key.
+export function createApplyLeaveTool(userId: string, requestId: string) {
   return tool(
-    async ({ userId, days }) => {
+    async ({ days }) => {
       return await applyLeave(userId, days, requestId);
     },
     {
       name: "applyLeave",
-      description: "Submit a leave application for an employee.",
+      description: "Submit a leave application for the current employee.",
       schema: z.object({
-        userId: z.string().describe("The employee's user ID"),
         days: z
           .number()
           .int()

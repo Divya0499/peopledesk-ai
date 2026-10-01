@@ -1,7 +1,16 @@
 import { pinecone } from "@/lib/pinecone";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 
+// Any logged-in user may see which documents the knowledge base holds; only
+// admins may change them (upload and DELETE /api/documents/[id]).
 export async function GET() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const index = pinecone.index(process.env.PINECONE_INDEX!);
 
@@ -22,10 +31,7 @@ export async function GET() {
 
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong",
+        error: "Internal server error",
       },
       { status: 500 }
     );

@@ -1,7 +1,22 @@
 import { embedDocument } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
+import { getCurrentUser } from "@/lib/session";
 
+// Writes into the shared Pinecone index that every user's RAG answers come
+// from, so only admins may run it. Checked before any embedding or upsert.
 export async function POST() {
+  // Who the caller is and their role come only from the session; the role is
+  // read from the database on each request, not from the cookie
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const documents = [
       "Employees receive 20 days of annual leave each year.",
@@ -38,10 +53,7 @@ export async function POST() {
 
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong",
+        error: "Internal server error",
       },
       {
         status: 500,

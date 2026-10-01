@@ -3,6 +3,11 @@ import { ai, CHAT_MODEL } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { rerankChunks } from "@/lib/rerank";
 import { searchChunks } from "@/lib/retrieval";
+import { getCurrentUser } from "@/lib/session";
+import {
+  formatUntrustedDocuments,
+  UNTRUSTED_DOCUMENT_RULES,
+} from "@/lib/untrusted-content";
 
 // Give up on reranking after this long and answer with Pinecone's order,
 // so a slow reranker can't hold up the chat
@@ -19,6 +24,13 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
+  // Who the caller is comes only from the signed session cookie
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -32,6 +44,25 @@ export async function POST(request: Request) {
         },
         {
           status: 400,
+        },
+      );
+    }
+
+    // Matched on both id and owner, so another user's conversationId looks
+    // the same as one that doesn't exist: 404, without revealing it exists.
+    // Checked before any retrieval or model call, and before anything is saved.
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId: user.userId },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      return Response.json(
+        {
+          error: "Conversation not found",
+        },
+        {
+          status: 404,
         },
       );
     }
@@ -106,17 +137,14 @@ export async function POST(request: Request) {
       console.error("Reranking failed, using Pinecone order", error);
     }
 
-    // Label each chunk with where it came from
-    const context = sources
-      .map(
-        (doc) => `
-Source: ${doc.source}
-Chunk: ${doc.chunkIndex}
-
-${doc.text}
-`,
-      )
-      .join("\n---\n");
+    // Label each chunk with where it came from, inside a marked block of
+    // untrusted data (see untrusted-content.ts)
+    const context = formatUntrustedDocuments(
+      sources.map((doc) => ({
+        label: `${doc.source}, chunk ${doc.chunkIndex}`,
+        text: doc.text,
+      })),
+    );
 
     // --------------------------------
     // 5. Build instructions + chat history for Gemini
@@ -131,7 +159,8 @@ If the answer cannot be found in the context, say:
 
 Do not make up company policies or information.
 
-Context:
+${UNTRUSTED_DOCUMENT_RULES}
+
 ${context}
 `;
 
@@ -240,7 +269,7 @@ ${context}
 
     return Response.json(
       {
-        error: error instanceof Error ? error.message : "Something went wrong",
+        error: "Internal server error",
       },
       {
         status: 500,

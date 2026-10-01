@@ -20,11 +20,17 @@ model Document {
   createdAt  DateTime @default(now())
 }
 
+// Owned by one employee: /api/chat and /api/conversations must only let the
+// owner read or add to it, so a conversationId alone grants no access.
 model Conversation {
   id        String    @id @default(uuid())
+  userId    String
+  user      Employee  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String?
   createdAt DateTime  @default(now())
   messages  Message[]
+
+  @@index([userId])
 }
 
 enum Role {
@@ -51,7 +57,17 @@ model Employee {
   name              String
   leaveBalance      Int
   department        String
+  // Read on every request by getCurrentUser(), so a role change applies
+  // immediately instead of waiting for the session cookie to expire.
+  role              UserRole           @default(employee)
   leaveApplications LeaveApplication[]
+  agentThreads      AgentThread[]
+  conversations     Conversation[]
+}
+
+enum UserRole {
+  employee
+  admin
 }
 
 enum LeaveStatus {
@@ -84,4 +100,17 @@ model UserMemory {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, key])
+}
+
+// Who owns each LangGraph thread. The checkpointer only stores run state, so
+// this is what /api/langgraph-test/resume checks before resuming a paused run:
+// a threadId alone must not let one user approve another user's leave.
+model AgentThread {
+  // The LangGraph thread_id
+  id        String   @id
+  userId    String
+  employee  Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

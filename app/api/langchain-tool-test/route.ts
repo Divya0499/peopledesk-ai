@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { HumanMessage } from "@langchain/core/messages";
-import { modelWithTools } from "@/lib/langchain-model";
-import { getLeaveBalanceTool } from "@/lib/langchain-tools";
+import { model } from "@/lib/langchain-model";
+import { createGetLeaveBalanceTool } from "@/lib/langchain-tools";
+import { getCurrentUser } from "@/lib/session";
 
 // A manual tool loop: Gemini asks for a tool, we run it, send the result
 // back, and Gemini writes the final answer.
 export async function POST(req: Request) {
+  // Who the caller is comes only from the signed session cookie. A userId in
+  // the body is ignored, so a caller can't act as another employee.
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const { question } = await req.json();
+    const body = await req.json();
+    const question = body.question;
 
     if (typeof question !== "string" || !question.trim()) {
       return NextResponse.json(
@@ -15,6 +25,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    // Built with the session's userId, so Gemini only asks for the tool and
+    // can't choose whose balance it reads
+    const getLeaveBalanceTool = createGetLeaveBalanceTool(user.userId);
+
+    // Tells Gemini the tool exists; it doesn't run it. Gemini may reply with a
+    // tool call, and we execute that ourselves with tool.invoke().
+    const modelWithTools = model.bindTools([getLeaveBalanceTool]);
 
     const userMessage = new HumanMessage(question);
 
@@ -60,7 +78,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Something went wrong",
+        error: "Internal server error",
       },
       { status: 500 },
     );

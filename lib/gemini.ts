@@ -9,7 +9,7 @@ export const EMBEDDING_MODEL = "gemini-embedding-001";
 
 // Turn text into a vector (3072 numbers for gemini-embedding-001).
 // taskType tells Gemini how the vector will be used, which improves search.
-export async function embedText(text: string, taskType?: string) {
+async function embedText(text: string, taskType?: string) {
   const result = await ai.models.embedContent({
     model: EMBEDDING_MODEL,
     contents: text,

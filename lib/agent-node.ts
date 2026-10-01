@@ -1,19 +1,18 @@
 import { SystemMessage } from "@langchain/core/messages";
 
 import type { GraphState } from "./graph-state";
-import { createModelWithTools } from "./graph-tools";
-import { createApplyLeaveTool } from "./langchain-tools";
+import { createGraphTools, createModelWithTools } from "./graph-tools";
 import { getMemories } from "./memory";
+import { UNTRUSTED_TOOL_RESULT_RULES } from "./untrusted-content";
 
 // Tools say what the agent can do; the system prompt says how it behaves.
 // The leave rules are explicit because "apply leave" also matches the
 // handbook, and a policy answer must not read as a submitted application.
-function systemPrompt(userId: string, memoryContext: string) {
+function systemPrompt(memoryContext: string) {
   return `
 You are an HR assistant.
 
-The current employee's user ID is ${userId}. Use it for every tool that
-needs a userId. Never ask the user for it or guess another ID.
+The tools always act on the current employee; never ask the user for an ID.
 
 When answering questions about an employee:
 - Use the available tools when you need employee data.
@@ -24,6 +23,8 @@ When a user asks about company policies, rules, benefits, procedures, or
 anything else contained in company documents:
 - Use searchCompanyDocs.
 - Never invent information that the documents don't contain.
+
+${UNTRUSTED_TOOL_RESULT_RULES}
 
 When the user wants to apply for, request, submit, or take leave:
 1. First call getLeaveBalance.
@@ -60,11 +61,12 @@ Memory rules:
 // A node takes the current state and returns only what changed. The
 // messages reducer appends the response instead of replacing the history.
 export async function agentNode(state: typeof GraphState.State) {
-  // Built per run from the state's requestId, so Gemini can ask for
-  // applyLeave but never sees or chooses the idempotency key.
+  // Built per run from the state's userId and requestId, so Gemini can ask
+  // for the HR tools but never sees or chooses the employee or the
+  // idempotency key.
   // bindTools() only tells Gemini the tools exist; the tool node runs them.
   const modelWithTools = createModelWithTools(
-    createApplyLeaveTool(state.requestId),
+    createGraphTools(state.userId, state.requestId),
   );
 
   // Loaded on every run rather than left to a tool call: Gemini doesn't
@@ -77,7 +79,7 @@ export async function agentNode(state: typeof GraphState.State) {
   // Sent with every call but not saved in the state, so the stored history
   // stays just the conversation
   const response = await modelWithTools.invoke([
-    new SystemMessage(systemPrompt(state.userId, memoryContext)),
+    new SystemMessage(systemPrompt(memoryContext)),
     ...state.messages,
   ]);
 
