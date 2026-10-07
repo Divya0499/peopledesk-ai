@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 import { FileIcon, TrashIcon } from "./icons";
 import type { DocumentOption } from "./types";
 
@@ -13,27 +14,34 @@ type DocumentListProps = {
 
 // Uploaded PDFs, each with a button to delete it
 function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // The document the confirmation dialog is asking about; null when closed
+  const [pendingDelete, setPendingDelete] = useState<DocumentOption | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleDelete = async (doc: DocumentOption) => {
-    const confirmed = window.confirm(
-      `Delete "${doc.fileName}"? Its chunks will be removed from search. This can't be undone.`,
-    );
+  const closeDialog = () => {
+    setPendingDelete(null);
+    setError("");
+  };
 
-    if (!confirmed) {
+  const confirmDelete = async () => {
+    if (!pendingDelete) {
       return;
     }
 
-    setDeletingId(doc.id);
+    setDeleting(true);
     setError("");
 
     try {
-      await onDelete(doc.id);
+      await onDelete(pendingDelete.id);
+      setPendingDelete(null);
     } catch (err) {
+      // Kept open with the error, so the person can retry or cancel
       setError(err instanceof Error ? err.message : "Failed to delete document");
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
     }
   };
 
@@ -70,25 +78,33 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
 
             <button
               type="button"
-              onClick={() => handleDelete(doc)}
-              disabled={deletingId !== null}
+              onClick={() => {
+                setError("");
+                setPendingDelete(doc);
+              }}
+              disabled={deleting}
               aria-label={`Delete ${doc.fileName}`}
               title="Delete"
               className="shrink-0 rounded p-1 text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
             >
-              {deletingId === doc.id ? (
-                <span className="text-xs">…</span>
-              ) : (
-                <TrashIcon className="size-3.5" />
-              )}
+              <TrashIcon className="size-3.5" />
             </button>
           </li>
         ))}
       </ul>
 
-      {error && <p className="px-4 pt-1 text-xs text-red-600">{error}</p>}
-
       {upload && <div className="p-3">{upload}</div>}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete document?"
+        description={`"${pendingDelete?.fileName ?? ""}" will be removed from search for everyone. This can't be undone.`}
+        confirmLabel="Delete"
+        busy={deleting}
+        error={error}
+        onConfirm={confirmDelete}
+        onCancel={closeDialog}
+      />
     </section>
   );
 }

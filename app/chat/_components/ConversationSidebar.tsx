@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { ChatIcon, CloseIcon, PlusIcon, SparkIcon } from "./icons";
+import { type ReactNode, useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
+import { ChatIcon, CloseIcon, PlusIcon, SparkIcon, TrashIcon } from "./icons";
 import type { ConversationSummary } from "./types";
 
 type ConversationSidebarProps = {
@@ -8,6 +9,8 @@ type ConversationSidebarProps = {
   activeId?: string;
   onNewChat: () => void;
   onSelect: (conversationId: string) => void;
+  // Deletes the conversation on the server; throws with a message on failure
+  onDelete: (conversationId: string) => Promise<void>;
   // Small screens show the sidebar as a drawer over the chat
   open: boolean;
   onClose: () => void;
@@ -20,10 +23,48 @@ function ConversationSidebar({
   activeId,
   onNewChat,
   onSelect,
+  onDelete,
   open,
   onClose,
   footer,
 }: ConversationSidebarProps) {
+  // The chat the confirmation dialog is asking about; null when it's closed
+  const [pendingDelete, setPendingDelete] =
+    useState<ConversationSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  const askToDelete = (conversation: ConversationSummary) => {
+    setError("");
+    setPendingDelete(conversation);
+  };
+
+  const closeDialog = () => {
+    setPendingDelete(null);
+    setError("");
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+
+    setDeleting(true);
+    setError("");
+
+    try {
+      await onDelete(pendingDelete.id);
+      setPendingDelete(null);
+    } catch (err) {
+      // Kept open with the error, so the person can retry or cancel
+      setError(
+        err instanceof Error ? err.message : "Failed to delete conversation",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <>
       {/* Backdrop behind the drawer on small screens */}
@@ -81,25 +122,59 @@ function ConversationSidebar({
               No conversations yet
             </p>
           ) : (
-            conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                onClick={() => onSelect(conversation.id)}
-                aria-current={conversation.id === activeId ? "true" : undefined}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-zinc-600 transition hover:bg-zinc-200/60 hover:text-zinc-900 aria-[current]:bg-zinc-200/80 aria-[current]:font-medium aria-[current]:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:aria-[current]:bg-zinc-800 dark:aria-[current]:text-zinc-50"
-              >
-                <ChatIcon className="size-4 shrink-0 opacity-60" />
-                <span className="truncate">
-                  {conversation.title ?? "New Conversation"}
-                </span>
-              </button>
-            ))
+            conversations.map((conversation) => {
+              const title = conversation.title ?? "New Conversation";
+
+              return (
+                // Two buttons side by side, not one inside the other: open
+                // the chat, or delete it
+                <div
+                  key={conversation.id}
+                  aria-current={
+                    conversation.id === activeId ? "true" : undefined
+                  }
+                  className="group flex items-center rounded-lg text-sm text-zinc-600 transition hover:bg-zinc-200/60 hover:text-zinc-900 aria-[current]:bg-zinc-200/80 aria-[current]:font-medium aria-[current]:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:aria-[current]:bg-zinc-800 dark:aria-[current]:text-zinc-50"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelect(conversation.id)}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                  >
+                    <ChatIcon className="size-4 shrink-0 opacity-60" />
+                    <span className="truncate">{title}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => askToDelete(conversation)}
+                    disabled={deleting}
+                    aria-label={`Delete ${title}`}
+                    title="Delete"
+                    // Always visible on touch screens, where there's no hover
+                    className="mr-1 shrink-0 rounded p-1 text-zinc-400 transition hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-red-950 dark:hover:text-red-400"
+                  >
+                    <TrashIcon className="size-3.5" />
+                  </button>
+                </div>
+              );
+            })
           )}
+
         </nav>
 
         {footer}
       </aside>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete chat?"
+        description={`"${pendingDelete?.title ?? "New Conversation"}" and all its messages will be permanently deleted. This can't be undone.`}
+        confirmLabel="Delete"
+        busy={deleting}
+        error={error}
+        onConfirm={confirmDelete}
+        onCancel={closeDialog}
+      />
     </>
   );
 }

@@ -125,6 +125,25 @@ function ChatLayout() {
       .finally(() => setLoadingDocuments(false));
   }, []);
 
+  // Deletes a chat; errors are shown by ConversationSidebar. If it was the
+  // open one, start a new chat instead of showing a deleted conversation.
+  const handleDeleteConversation = async (deletedId: string) => {
+    const response = await fetch(`/api/conversations/${deletedId}`, {
+      method: "DELETE",
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error ?? `Server error: ${response.status}`);
+    }
+
+    setConversations((prev) => prev.filter((c) => c.id !== deletedId));
+
+    if (activeConversation?.id === deletedId) {
+      showChat(null);
+    }
+  };
+
   // Removes the PDF from PostgreSQL and Pinecone; errors are shown by DocumentList
   const handleDeleteDocument = async (deletedId: string) => {
     const response = await fetch(`/api/documents/${deletedId}`, {
@@ -161,6 +180,7 @@ function ChatLayout() {
         activeId={activeConversation?.id}
         onNewChat={newChat}
         onSelect={selectConversation}
+        onDelete={handleDeleteConversation}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         footer={
