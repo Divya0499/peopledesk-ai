@@ -83,10 +83,10 @@ export default function LoginPage() {
             id="userId"
             value={userId}
             onChange={(event) => setUserId(event.target.value)}
-            placeholder="user-123"
+            placeholder="e.g. user-123"
             autoComplete="username"
             autoFocus
-            className="mt-2 block w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+            className="mt-2 block w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-zinc-900 outline-none transition placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
           />
 
           <button

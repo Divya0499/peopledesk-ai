@@ -63,7 +63,14 @@ export const getLeavePolicyTool = tool(
 export function createApplyLeaveTool(userId: string, requestId: string) {
   return tool(
     async ({ days }) => {
-      return await applyLeave(userId, days, requestId);
+      const result = await applyLeave(userId, days, requestId);
+
+      // requestId is the app's idempotency key: applyLeave() and the
+      // database use it, the model never needs it. Left out of what the
+      // model sees, so it can't repeat it to the user whatever the prompt.
+      return Object.fromEntries(
+        Object.entries(result).filter(([key]) => key !== "requestId"),
+      );
     },
     {
       name: "applyLeave",

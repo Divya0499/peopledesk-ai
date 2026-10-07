@@ -23,12 +23,13 @@ model Document {
 // Owned by one employee: /api/chat and /api/conversations must only let the
 // owner read or add to it, so a conversationId alone grants no access.
 model Conversation {
-  id        String    @id @default(uuid())
-  userId    String
-  user      Employee  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String?
-  createdAt DateTime  @default(now())
-  messages  Message[]
+  id           String        @id @default(uuid())
+  userId       String
+  user         Employee      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String?
+  createdAt    DateTime      @default(now())
+  messages     Message[]
+  agentThreads AgentThread[]
 
   @@index([userId])
 }
@@ -103,14 +104,20 @@ model UserMemory {
 }
 
 // Who owns each LangGraph thread. The checkpointer only stores run state, so
-// this is what /api/langgraph-test/resume checks before resuming a paused run:
-// a threadId alone must not let one user approve another user's leave.
+// this is what a resume route checks before resuming a paused run: a
+// threadId alone must not let one user approve another user's leave.
 model AgentThread {
   // The LangGraph thread_id
-  id        String   @id
-  userId    String
-  employee  Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id             String        @id
+  userId         String
+  employee       Employee      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The chat a paused /api/chat run belongs to, so resuming saves its
+  // outcome there. Null for /api/langgraph-test runs, which aren't part of
+  // a saved conversation.
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
 
   @@index([userId])
+  @@index([conversationId])
 }

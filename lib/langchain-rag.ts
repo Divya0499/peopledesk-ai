@@ -103,6 +103,8 @@ export const ragChain = RunnablePassthrough.assign({
 
 export type RagSource = {
   id: string;
+  // The chunk itself, so the chat UI can show what the answer was based on
+  text: string;
   source: string;
   section: string;
   chunkIndex: number;
@@ -125,6 +127,7 @@ export async function askRag(question: string, history: BaseMessage[] = []) {
     : // pick() doesn't keep the documents' type
       (documents as Document[]).map((doc) => ({
         id: doc.metadata.id,
+        text: doc.pageContent,
         source: doc.metadata.source,
         section: doc.metadata.section,
         chunkIndex: doc.metadata.chunkIndex,

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { withPendingApproval } from "./approval";
 import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
 import DocumentList from "./DocumentList";
@@ -48,13 +49,18 @@ function ChatLayout() {
   const [chatKey, setChatKey] = useState(0);
   // Sidebar drawer on small screens; always shown from md up
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Turn a saved conversation's messages into the chat's message format
+  // Turn a saved conversation's messages into the chat's message format,
+  // with the Approve / Reject card back on a leave application that's still
+  // waiting (the server read it from the paused run)
   const toMessages = (conversation: ConversationSummary): Message[] =>
-    conversation.messages.map((message) => ({
-      role: message.role,
-      text: message.text,
-      sources: message.sources ?? undefined,
-    }));
+    withPendingApproval(
+      conversation.messages.map((message) => ({
+        role: message.role,
+        text: message.text,
+        sources: message.sources ?? undefined,
+      })),
+      conversation.pendingApproval,
+    );
 
   const showChat = (conversation: ConversationSummary | null) => {
     setActiveConversation(conversation);

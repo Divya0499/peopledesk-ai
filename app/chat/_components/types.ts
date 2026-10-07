@@ -1,3 +1,5 @@
+import type { ApprovalEvent } from "./approval";
+
 // A PDF chunk the answer was based on, sent by /api/chat after the text
 export type Source = {
   id: string;
@@ -7,13 +9,20 @@ export type Source = {
   score?: number;
 };
 
-// A leave application the HR assistant paused on, waiting for the person
-// to approve or reject it (from /api/langgraph-test's pending_approval)
+// An action a run paused on, waiting for the person to approve or reject
+// it: from /api/chat's approval event, or HR assistant mode's
+// pending_approval
 export type Approval = {
-  // Sent back to /api/langgraph-test/resume to continue the paused run
+  // Sent back to the resume route to continue the paused run
   threadId: string;
-  userId: string;
-  days: number;
+  // Which route resumes it: /api/chat/resume, or /api/langgraph-test/resume
+  // for HR assistant mode
+  via: "chat" | "agent";
+  message: string;
+  // The tool waiting to run, e.g. applyLeave
+  toolName: string;
+  // applyLeave's number of days; no userId, the server knows who's asking
+  days?: number;
   status: "pending" | "approved" | "rejected";
 };
 
@@ -42,4 +51,7 @@ export type ConversationSummary = {
     // Saved with each AI answer; null for user messages
     sources: Source[] | null;
   }[];
+  // A leave application in this chat still waiting for approval, so its
+  // card can be shown again; null when there's none
+  pendingApproval: ApprovalEvent | null;
 };

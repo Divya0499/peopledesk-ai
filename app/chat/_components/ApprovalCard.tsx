@@ -7,18 +7,24 @@ type ApprovalCardProps = {
   onDecision: (approved: boolean) => void;
 };
 
-// The leave application the HR assistant paused on. Nothing is written to
-// the database until the person clicks Approve.
+// The action a run paused on. Nothing is written to the database until the
+// person clicks Approve.
 function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
+  const isLeave =
+    approval.toolName === "applyLeave" && typeof approval.days === "number";
   const dayLabel = approval.days === 1 ? "day" : "days";
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30">
       <p className="font-medium text-zinc-900 dark:text-zinc-50">
-        Leave application: {approval.days} {dayLabel}
+        {isLeave
+          ? `Leave application: ${approval.days} ${dayLabel}`
+          : approval.message}
       </p>
       <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-        For {approval.userId}. The leave is deducted only after approval.
+        {isLeave
+          ? "Your leave is deducted only after you approve."
+          : "Nothing happens until you approve."}
       </p>
 
       {approval.status === "pending" ? (
