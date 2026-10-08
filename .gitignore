@@ -47,3 +47,11 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /tests/eval/last-run.json
+
+# local editor / assistant config
+.claude/
+.agents/
+.windsurf/
+CLAUDE.md
+AGENTS.md
+skills-lock.json
