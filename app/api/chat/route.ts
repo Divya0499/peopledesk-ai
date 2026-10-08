@@ -19,6 +19,10 @@ import {
   supervisorConfig,
 } from "@/lib/supervisor-agent";
 
+// A turn makes several model calls (often 10–45 s), longer than a
+// serverless default allows
+export const maxDuration = 300;
+
 // How many earlier messages the supervisor sees, newest kept. Bounds the
 // prompt size however long the conversation gets.
 const HISTORY_LIMIT = 20;

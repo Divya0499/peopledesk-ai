@@ -4,6 +4,10 @@ import { enqueueUpload } from "@/lib/ingest";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
+// Processing runs after the response (after()) but still counts against
+// this limit, and embedding a long PDF takes a while
+export const maxDuration = 300;
+
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILE_LABEL = "10 MB";
 // Room for the multipart boundaries and headers around the file

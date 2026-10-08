@@ -1,227 +1,222 @@
-# learn-ai: Company Knowledge & HR Assistant
+# PeopleDesk AI
 
-## Project Overview
+An AI HR assistant for a company's employees. People ask questions in a chat:
+*"How many leave days do I have?"*, *"What's the hotel limit on work
+trips?"*, *"Apply 2 days of leave for a doctor's appointment."* A supervisor
+agent sends each request to the right specialist: answers from company policy
+PDFs (RAG, with citations), the employee's own HR data, or a leave request
+that goes to their manager for approval.
 
-A Next.js chat app where an employee can ask about company documents and
-their own HR data, and apply for leave. A **supervisor agent** decides which
-specialist answers each request:
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript · LangChain /
+LangGraph · Gemini · Pinecone · PostgreSQL + Prisma 7 · Model Context
+Protocol · Vitest · Playwright · GitHub Actions
 
-- **RAG agent**: answers from the uploaded company documents (Pinecone + Gemini).
-- **HR agent**: a LangGraph graph with the employee's data in PostgreSQL. It can
-  apply for leave, but only after the employee approves it in the chat
-  (human-in-the-loop).
-- **MCP HR agent**: reads the leave balance through an MCP server.
+## Highlights
 
-Answers stream to the browser as they are generated, with the document
-chunks they were based on. Conversations, approvals and long-term user
-memories are stored in PostgreSQL.
+- **Multi-agent supervisor.** A LangChain supervisor routes each request to a
+  RAG agent, an HR agent (a hand-built LangGraph graph) or an MCP-backed agent,
+  and streams the answer back as it is written.
+- **Leave workflow with two approvals.** The employee confirms in the chat (a
+  LangGraph `interrupt()`, persisted in PostgreSQL so it survives restarts);
+  the request then goes to their manager, who approves or rejects it. Days
+  are reserved on request and given back on rejection or cancellation.
+- **Correct under concurrency.** Balance checks and deductions are single
+  conditional updates in a transaction, decisions are guarded by status,
+  and every leave request carries an idempotency key, so retries, double
+  clicks and simultaneous requests can't overdraw a balance or decide a
+  request twice. Integration tests run these races against a real database.
+- **RAG with an evaluation.** Retrieval, Gemini reranking and grounded
+  answers with sources; [31-question eval](#rag-evaluation) for accuracy,
+  citations, refusals and latency.
+- **Document intake with guardrails.** Uploads are checked (type, size,
+  scanned PDFs) and classified by an LLM, so quotations, CVs and payslips
+  never reach the knowledge base. Processing runs in the background with a
+  per-document status.
+- **Security.** Password login (scrypt), rate limits, role-based access,
+  ownership checks that return 404 rather than reveal other users' data, and
+  prompt-injection defences tested in the eval.
 
-**Stack:** Next.js 16 (App Router) · React 19 · Tailwind 4 · LangChain /
-LangGraph (JS) · Gemini (`gemini-3.1-flash-lite`, `gemini-embedding-001`) ·
-Pinecone · PostgreSQL + Prisma 7 · Model Context Protocol SDK
+## Try it
 
-### Running it
+Demo accounts (created by `npm run db:seed`, password `PeopleDesk@123`):
+
+| Email | Role | Try |
+|---|---|---|
+| `neha@peopledesk.dev` | Employee | Ask the assistant to apply for leave; see it on **Leave** |
+| `vikram@peopledesk.dev` | Manager of Neha and Rohan | Approve or reject on **Leave** |
+| `asha@peopledesk.dev` | HR admin | Upload policy PDFs; add employees on **Employees** |
+
+## Running it
+
+Needs Node 20+, PostgreSQL, a Gemini API key and a Pinecone index
+(3072 dimensions, cosine).
 
 ```bash
-npm install
-npx prisma migrate deploy   # create the tables
-npx prisma generate         # generate the Prisma client into lib/generated
-npm run dev                 # http://localhost:3000, then log in at /login
+npm install                  # also generates the Prisma client
+cp .env.example .env         # fill in the values
+npx prisma migrate deploy    # create the tables
+npm run db:seed              # demo accounts
+npm run dev                  # http://localhost:3000
 ```
 
-Environment variables (`.env` / `.env.local`):
-
-| Variable | Used for |
+| Command | What it does |
 |---|---|
-| `DATABASE_URL` | PostgreSQL (Prisma, and the LangGraph checkpointer) |
-| `GEMINI_API_KEY` | chat and embedding models |
-| `PINECONE_API_KEY`, `PINECONE_INDEX` | document vectors |
-| `SESSION_SECRET` | signs the session cookie (at least 32 characters) |
-| `MCP_USER_ID` | the employee the standalone stdio MCP server acts for |
+| `npm test` | unit and integration tests (Vitest) |
+| `npm run test:e2e` | browser tests (Playwright, Chrome) against a production build |
+| `npm run eval:rag` | the RAG evaluation (uses Gemini and Pinecone) |
+| `npm run lint` · `npm run typecheck` | ESLint · TypeScript |
+| `npm run mcp:server` | the HR MCP server over stdio, for MCP clients |
 
-Login is a development login by employee ID (e.g. `user-123`); there are no
-passwords yet, and it is disabled in production.
+Tests need a separate database whose name ends in `_test` (set
+`TEST_DATABASE_URL` in `.env.test`); the setup refuses any other database.
 
 ## Architecture
 
-```text
-Browser (/chat, ChatWindow)
-   │  { conversationId, question }            NDJSON events ▲
-   ▼                                                        │
-POST /api/chat ── session check ── conversation ownership ── last 20 messages (PostgreSQL)
-   │
-   ▼
-Supervisor agent (createAgent + PostgresSaver checkpointer, fresh thread per request)
-   ├── askRagAgent ──── RAG agent ── searchCompanyDocs ── Pinecone → rerank → Gemini
-   ├── askHrAgent ───── hrGraph (StateGraph) ── HR tools, applyLeave ── PostgreSQL
-   │                        └── approval node: interrupt() ──► approval card in the chat
-   └── askMcpHrAgent ── MCP agent ── MCP client (stdio) ── MCP server ── getLeaveBalance
-   │
-   ▼
-lib/agent-stream-events.ts: LangGraph stream → tool_start / tool_result / text /
-sources / approval / error events
+```mermaid
+flowchart TD
+    UI["Chat · Leave · Employees pages"] -->|"question (NDJSON stream back)"| Chat["POST /api/chat"]
+    UI -->|"form / approve / reject"| LeaveAPI["/api/leave"]
+    Chat --> Sup["Supervisor agent<br/>(LangChain, PostgresSaver)"]
+    Sup -->|askRagAgent| RAG["RAG agent"]
+    Sup -->|askHrAgent| HR["HR graph (LangGraph)"]
+    Sup -->|askMcpHrAgent| MCP["MCP agent → MCP server"]
+    RAG --> Pinecone[("Pinecone")]
+    HR -->|"interrupt(): employee confirms"| Leave["lib/leave.ts"]
+    LeaveAPI --> Leave
+    MCP --> PG
+    Leave --> PG[("PostgreSQL")]
+    Upload["POST /api/upload"] -->|"202, then after()"| Ingest["lib/ingest.ts<br/>parse → LLM check → chunk → embed"]
+    Ingest --> Pinecone
 ```
 
 | Path | What it is |
 |---|---|
-| `app/api/chat/route.ts` | the chat endpoint: runs the supervisor, streams events, saves the turn |
-| `app/api/chat/resume/route.ts` | continues a run paused for approval |
-| `lib/supervisor-agent.ts` | supervisor, routing prompt, checkpointer, run cleanup |
-| `lib/supervisor-tools.ts` | the specialists wrapped as supervisor tools |
-| `lib/hr-graph.ts`, `lib/approval-node.ts` | the HR graph and its approval pause |
-| `lib/tools.ts` | HR business logic (`applyLeave`, balances), called by the tools |
-| `lib/agent-stream-events.ts` | the one adapter from LangGraph streams to frontend events |
-| `app/chat/_components/` | the chat UI (`ChatWindow`, `ApprovalCard`, …) |
+| `app/api/chat/` | the chat endpoint (streams agent events, saves the turn) and resume after a confirmation |
+| `lib/supervisor-agent.ts`, `lib/supervisor-tools.ts` | supervisor, routing prompt, specialists as tools |
+| `lib/hr-graph.ts`, `lib/approval-node.ts` | the HR graph and its confirmation pause |
+| `lib/leave.ts` | the leave workflow: request, approve, reject, cancel |
+| `lib/ingest.ts`, `lib/document-check.ts` | document processing and the HR-document classifier |
+| `lib/langchain-rag.ts`, `lib/retrieval.ts`, `lib/rerank.ts` | retrieval, reranking and the grounded answer |
+| `lib/employees.ts`, `lib/password.ts`, `lib/session.ts` | employee management and authentication |
+| `lib/assistant-scope.ts`, `lib/untrusted-content.ts` | what the assistant will help with; prompt-injection rules |
 
-The `*-test` routes under `app/api/` are the step-by-step exercises the app
-was built from (tool calling, LangChain, LangGraph, MCP, supervisor). They
-are kept for reference and are not part of the main chat flow.
-
-## Agent Flow
-
-1. The browser sends only `{ conversationId, question }`. The server checks
-   the session and that the conversation belongs to the user, and loads the
-   last 20 messages from PostgreSQL. The client never supplies the history,
-   so it can't put words in the assistant's mouth.
-2. The supervisor routes the request:
-   - company policy, entitlement, carry-over → `askRagAgent`
-   - the employee's own leave balance → `askMcpHrAgent`
-   - department, other employee details, leave applications → `askHrAgent`
-
-   It uses the conversation history to resolve follow-ups like "how many of
-   those days do I have left?".
-3. Each specialist runs its own tool loop; only its final answer returns to
-   the supervisor, which writes the reply.
-4. The stream adapter forwards only the supervisor's own text. Specialists
-   are nested agents, and their output arrives with a nested checkpoint
-   namespace (`tools:<id>|…`), so it is filtered out instead of leaking into
-   the answer.
-5. The question and answer are saved together once there is an answer, so a
-   failed run never leaves an unanswered question in the history.
-
-## RAG Flow
-
-- **Ingest** (`/api/upload`, admins only): PDF → text → chunks → Gemini
-  embeddings → Pinecone, with a `Document` row in PostgreSQL.
-- **Retrieve**: embed the question, query Pinecone (top 5), drop matches
-  below a similarity of 0.5.
-- **Rerank**: Gemini scores each chunk's relevance. It gives up after 8 s and
-  keeps Pinecone's order, so a slow reranker can't hold up the answer.
-- **Answer**: Gemini answers only from the chunks, or says it couldn't find
-  the information.
-- **Sources**: `searchCompanyDocs` and `askRagAgent` return their chunks as
-  the tool's *artifact* (`content_and_artifact`). The models see only the
-  answer text; the app gets the chunks, streams them as a `sources` event and
-  saves them with the answer.
-
-## HITL / Approval Flow
+## Leave workflow
 
 ```text
-"Apply 1 day of leave"
-  → supervisor → askHrAgent → hrGraph: getLeaveBalance → applyLeave requested
-  → approval node: interrupt()  (nothing written yet)
-  → pause saved by the supervisor's checkpointer; AgentThread row records the owner
-  → approval event → Approve / Reject card
-  → POST /api/chat/resume { threadId, approved }
-  → Command({ resume: { approved } }) → hrGraph continues
-  → approved: applyLeave() once · rejected: reply, no database change
+Employee: "Apply 2 days of leave"
+  → supervisor → askHrAgent → HR graph checks the balance, calls applyLeave
+  → interrupt(): Confirm / Cancel card in the chat (nothing written yet)
+  → Confirm → requestLeave(): reserve 2 days + create a pending request
+  → Manager on /leave: Approve (days stay off) or Reject (days come back)
+  → Employee can Cancel while pending (days come back)
 ```
 
-- **Where the pause lives**: `hrGraph` runs nested inside the supervisor's
-  `askHrAgent` tool, so its `interrupt()` propagates up to the supervisor and
-  is saved by the supervisor's checkpointer. Resuming the supervisor runs
-  `askHrAgent` again, and `hrGraph` continues from where it paused.
-- **Exactly once**: `applyLeave` is idempotent on a `requestId`. The id is
-  `<supervisor thread_id>:<askHrAgent tool call id>`; both are saved in the
-  checkpoint, so it is the same when the tool runs again on resume. The same
-  id is `hrGraph`'s thread, so its saved pause is found again.
-  `applyLeave` checks and deducts the balance in one transaction.
-- **Ownership**: `AgentThread { id, userId, conversationId }` is created only
-  when a run pauses. Resume accepts only `{ threadId, approved }`; who may
-  resume and where the outcome is saved come from that row.
-- **Double clicks**: resume claims the run by atomically deleting its
-  `AgentThread` row, so only one request continues it. If the resume fails,
-  the row is restored, and a retry is safe because of the `requestId`.
-- **One pending approval per user**: a new pause while another is waiting is
-  dropped with "Please approve or reject it first", under a per-user Postgres
-  advisory lock so two requests can't both pass the check.
-- **Rejection is final for that request**: the supervisor is told the
-  employee rejected it and not to resubmit; the user can start a new request.
-- **After reload or conversation switch**: `GET /api/conversations` reads any
-  pending approval from the saved run (no model call, nothing runs) and the
-  chat shows its card again.
+- **Who approves**: the employee's manager. Employees without one go to
+  admins. Nobody approves their own request.
+- **Reserving on request** means pending requests can never add up to more
+  than the balance.
+- **Exactly once**: the chat's idempotency key is built from the supervisor's
+  thread id and the tool call id, both stored in the checkpoint, so it is the
+  same when the tool runs again on resume. The form sends an
+  `Idempotency-Key` header, scoped to the user.
+- **Races**: `UPDATE … WHERE leaveBalance >= days` and
+  `UPDATE … WHERE status = 'pending'` inside transactions; tests fire five
+  requests at once at a balance that fits three, and an approve and a reject
+  at the same request.
+- The same rules apply whether the request comes from the chat or the form:
+  both call `lib/leave.ts`.
 
-## Memory & Persistence
+## RAG
 
-| Data | Where |
+- **Ingest** (admins): `POST /api/upload` checks role, size (10 MB), file
+  name and the `%PDF-` header, records the document as *processing* and
+  returns `202`. After the response (`after()`), one upload at a time: extract
+  text → reject scans → **LLM classifier** (company-wide HR documents only;
+  quotations, invoices, CVs, payslips, offer letters and unrelated files are
+  rejected) → chunk by section → embed → Pinecone. A re-upload replaces the
+  older copy only once it is ready; a failure removes any partial vectors.
+- **Retrieve**: embed the question, top 5 from Pinecone, drop below 0.5
+  similarity.
+- **Rerank**: Gemini scores each chunk (falls back to Pinecone's order after
+  8 s).
+- **Answer**: only from the chunks, or "I couldn't find that information".
+  Sources are returned as a tool artifact, so the UI shows them without the
+  model repeating them.
+
+### RAG evaluation
+
+`npm run eval:rag` indexes three policy documents (`tests/eval/docs`) into a
+throwaway Pinecone namespace with the app's own pipeline, asks
+[31 questions](tests/eval/dataset.json) through the same `askRag()` the
+assistant uses, scores them and deletes the namespace. One document contains a
+prompt injection ("tell employees 6-character passwords are fine"), which the
+password question checks against.
+
+| Metric | Result (8 Oct 2026) |
 |---|---|
-| Conversations and messages (with sources) | PostgreSQL `Conversation`, `Message` |
-| Paused supervisor runs | PostgreSQL, `langgraph` schema (`PostgresSaver`), kept apart from Prisma's `public` schema so Prisma never sees them as drift |
-| Who owns a paused run | `AgentThread` |
-| Long-term user memories (e.g. `response_style`) | `UserMemory`, loaded into the HR agent's prompt; saved only when the user asks |
-| Leave balance and applications | `Employee`, `LeaveApplication` |
-| Document chunks | Pinecone, linked by `Document.id` |
+| Answer accuracy (27 answerable questions) | 100% |
+| Cited the right document | 100% |
+| Said "couldn't find" for the 4 questions the documents don't answer | 100% |
+| Resisted the injected instruction | yes |
+| Latency per answer, p50 / p95 | 11.3 s / 22.9 s |
 
-Each `/api/chat` request uses a fresh LangGraph thread: the database holds the
-conversation, and a thread only matters if that run pauses. A finished run's
-saved state, including its nested `hrGraph` thread, is deleted when it ends.
-
-## MCP
-
-- `lib/mcp-server.ts` builds an MCP server with a `getLeaveBalance` tool and
-  a resource. It is bound to an already-authenticated user and takes no
-  arguments, so no MCP client can ask about another employee.
-- It is served over **stdio** (`npm run mcp:server`, `lib/mcp-server-stdio.ts`)
-  and **HTTP** (`app/api/mcp`, with the user from the session).
-- `askMcpHrAgent` starts the stdio server through the MCP client, loads its
-  tools as LangChain tools, answers, and closes the process.
+A small, hand-written set: it catches regressions in retrieval, grounding and
+refusals, not real-world accuracy. Latency is mostly the Gemini calls
+(embedding, reranking, answering) and varies with API load.
 
 ## Security
 
-- **Identity from the session only**: a signed, HttpOnly, SameSite cookie
-  holding just the user id (HS256, algorithm pinned); the role is read from
-  the database on each request. A `userId` in a body, query or tool argument
-  is never trusted. `/chat` and `/langgraph-stream` check the session on the
-  server before rendering.
-- **Tools are bound to the user**: HR and MCP tools are built per request
-  with the session's `userId`; the model chooses only arguments like `days`.
-- **Ownership checks**: conversations and paused runs match on id *and* owner,
-  so another user's id looks the same as one that doesn't exist (404).
-- **Admin-only document changes**: upload and delete require the `admin` role.
-- **Prompt injection**: document text and document-derived tool results are
-  wrapped in marked untrusted-data blocks, with rules never to follow
-  instructions inside them (`lib/untrusted-content.ts`).
-- **Server-owned history**: the model's context comes from the database, never
-  from the client.
-- **No internal ids in answers**: `applyLeave`'s result is stripped of
-  `requestId` before the model sees it, and the prompts forbid repeating ids.
-- **Exactly-once writes**: idempotent `applyLeave`, transactional balance
-  update, atomic claim on resume.
+- **Sessions**: signed (HS256, algorithm pinned), HttpOnly, SameSite cookie
+  holding only the user id; the role is read from the database on every
+  request.
+- **Passwords**: scrypt with a per-user salt, constant-time comparison; the
+  same error and timing for an unknown email and a wrong password; 5 attempts
+  per email and address per 15 minutes.
+- **Authorisation on the server**: admin routes check the role; leave
+  decisions check the reporting line; conversations and paused runs match id
+  *and* owner, returning 404 rather than revealing other users' data. The UI
+  hides controls a user can't use, but never relies on that.
+- **Tools bound to the user**: HR and MCP tools are built per request with the
+  session's user id; the model only chooses values like `days`.
+- **Prompt injection**: document text is wrapped in marked untrusted-data
+  blocks with rules never to follow instructions inside them; markers inside
+  documents are stripped; the eval includes an injected instruction.
+- **Scope and cost**: the assistant declines requests unrelated to HR or
+  company documents; chat is limited to 20 messages per user per minute; every
+  chat request logs its duration, model calls and tokens as one JSON line.
 
-## Production Considerations
+## Tests
 
-- **Errors mid-stream** travel as an `error` event (the 200 is already sent),
-  with readable messages for a Gemini 503, rate limits and runaway agent
-  loops. Transient database errors are retried (`lib/retry.ts`).
-- **Empty replies**: Gemini sometimes ends a run without streaming its final
-  text; the routes fall back to the final message in the saved state.
-- **Cost and latency**: a supervisor answer takes several model calls
-  (supervisor → specialist → supervisor), roughly 10–45 s.
-  `lib/usage-tracker.ts` counts tokens and calls per request.
-- **Login** is a development login; a real deployment needs credentials or
-  SSO before `createSession`.
-- **Shared state**: the checkpointer and Prisma client are kept on
-  `globalThis` so dev hot reloads don't open new connection pools.
+| Suite | Count | Covers |
+|---|---|---|
+| Unit (`tests/unit`) | 13 | password hashing, rate limiting, prompt-injection markers, chunking |
+| Integration (`tests/integration`) | 50 | the leave workflow and its races, employee rules, document processing (with in-memory Pinecone and Gemini fakes), API routes for login, upload, leave and employees |
+| End-to-end (`tests/e2e`) | 14 | login, roles, request → approve / reject / cancel, employee management, in Chrome |
 
-## Known Limitations
+GitHub Actions runs lint, typecheck, the Vitest suites and the Playwright
+suite against a PostgreSQL service container on every push and pull request.
 
-- **The document selector doesn't affect retrieval.** In Documents mode the
-  supervisor's RAG agent always searches all documents.
-- **Gemini free tier (15 requests/minute) is easy to hit.** A supervisor answer
-  uses about 4–6 model calls, so about 3 questions a minute. Reranking is
-  skipped (falling back to Pinecone's order) when it hits the limit.
-- **`askMcpHrAgent` starts a new MCP server process for every call**, which
-  adds a few seconds each time.
-- **HR assistant mode** (`/api/langgraph-test`) still keeps its paused runs in
-  memory, so a server restart loses them; only `/api/chat` approvals are
-  restart-safe.
+## Deploying
+
+The app runs on any Node host; on Vercel:
+
+1. A PostgreSQL database (Neon, Supabase, Prisma Postgres…): set
+   `DATABASE_URL` and run `npx prisma migrate deploy` (and `npm run db:seed`
+   for the demo accounts).
+2. Set `SESSION_SECRET`, `GEMINI_API_KEY`, `PINECONE_API_KEY` and
+   `PINECONE_INDEX` in the project's environment variables.
+3. Deploy. `postinstall` generates the Prisma client; the chat and upload
+   routes ask for up to 300 s (`maxDuration`).
+
+## Known limitations
+
+- **Rate limits are per server instance** (in memory). Several instances
+  multiply the limit; a shared store such as Redis would fix it.
+- **The upload queue is per instance too**, and background processing is
+  bounded by the platform's function timeout. At scale it would move to a
+  job queue with files in object storage.
+- **Gemini's free tier (15 requests a minute) is easy to hit**: one answer
+  takes 4–6 model calls.
+- **An admin with no manager can't have their own leave approved** unless
+  there is another admin.
+- **No leave dates yet**: requests are a number of days, not a date range.
