@@ -1,5 +1,6 @@
 import { SystemMessage } from "@langchain/core/messages";
 
+import { ASSISTANT_SCOPE_RULES } from "./assistant-scope";
 import type { GraphState } from "./graph-state";
 import { createGraphTools, createModelWithTools } from "./graph-tools";
 import { getMemories } from "./memory";
@@ -11,6 +12,8 @@ import { UNTRUSTED_TOOL_RESULT_RULES } from "./untrusted-content";
 function systemPrompt(memoryContext: string) {
   return `
 You are an HR assistant.
+
+${ASSISTANT_SCOPE_RULES}
 
 The tools always act on the current employee; never ask the user for an ID.
 

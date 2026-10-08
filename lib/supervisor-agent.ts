@@ -4,6 +4,7 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { approvalFromInterrupt, type ApprovalEvent } from "./agent-stream-events";
 import { createAgent } from "langchain";
+import { ASSISTANT_SCOPE_RULES } from "./assistant-scope";
 import { model } from "./langchain-model";
 import {
   createAskHrAgentTool,
@@ -139,6 +140,8 @@ export function createSupervisorAgent(
     ],
     systemPrompt: `
 You are a supervisor agent.
+
+${ASSISTANT_SCOPE_RULES}
 
 You coordinate specialized agents. Understand the user's request
 and delegate each part of it to the right specialist.
