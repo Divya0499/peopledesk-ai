@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getIndex } from "@/lib/pinecone";
+import { deleteDocumentVectors } from "@/lib/ingest";
 import { getCurrentUser } from "@/lib/session";
 
 // Removes a document from the shared knowledge base every user's RAG answers
@@ -36,18 +36,14 @@ export async function DELETE(
     }
 
     // Remove the vectors first: if this fails, the row stays and the
-    // delete can be retried, instead of leaving orphaned vectors behind
-    const index = getIndex();
+    // delete can be retried, instead of leaving orphaned vectors behind.
+    // A document still processing has none yet; processUpload() removes
+    // any it adds once it finds the row gone.
+    if (document.status !== "processing") {
+      await deleteDocumentVectors(id);
+    }
 
-    await index.deleteMany({
-      filter: {
-        documentId: {
-          $eq: id,
-        },
-      },
-    });
-
-    await prisma.document.delete({
+    await prisma.document.deleteMany({
       where: { id },
     });
 

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 
 import { describeDb, PASSWORD, resetDatabase, seedTeam } from "../support/db";
@@ -32,9 +33,16 @@ vi.mock("@/lib/session", () => ({
   },
 }));
 
-// The AI content check: each test decides what it returns
-const documentCheck = vi.hoisted(() => ({ checkDocument: vi.fn() }));
-vi.mock("@/lib/document-check", () => documentCheck);
+// Processing runs after the response (see ingest.test.ts); here the route
+// only has to accept the file and queue it
+const ingest = vi.hoisted(() => ({ enqueueUpload: vi.fn() }));
+vi.mock("@/lib/ingest", () => ingest);
+
+// after() needs a real Next.js request; run its callback straight away
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (callback: () => unknown) => callback(),
+}));
 
 const { POST: login } = await import("@/app/api/auth/login/route");
 const { POST: upload } = await import("@/app/api/upload/route");
@@ -69,7 +77,7 @@ describeDb("API routes", () => {
   beforeEach(async () => {
     session.user = null;
     session.createSession.mockReset();
-    documentCheck.checkDocument.mockReset();
+    ingest.enqueueUpload.mockReset();
     await resetDatabase();
     await seedTeam();
   });
@@ -77,9 +85,13 @@ describeDb("API routes", () => {
   describe("POST /api/auth/login", () => {
     const attempt = (email: string, password: string, ip: string) =>
       login(
-        json("http://test/api/auth/login", { email, password }, {
-          "x-forwarded-for": ip,
-        }),
+        json(
+          "http://test/api/auth/login",
+          { email, password },
+          {
+            "x-forwarded-for": ip,
+          },
+        ),
       );
 
     it("logs in with the right password, whatever the email's case", async () => {
@@ -134,7 +146,10 @@ describeDb("API routes", () => {
       as("admin", "admin");
 
       const docx = await upload(
-        await uploadRequest(await fixture("should-reject/word-file.docx"), "word-file.docx"),
+        await uploadRequest(
+          await fixture("should-reject/word-file.docx"),
+          "word-file.docx",
+        ),
       );
       expect(docx.status).toBe(400);
 
@@ -155,39 +170,11 @@ describeDb("API routes", () => {
       const response = await upload(await uploadRequest(big, "big.pdf"));
 
       expect(response.status).toBe(413);
-      expect(documentCheck.checkDocument).not.toHaveBeenCalled();
+      expect(ingest.enqueueUpload).not.toHaveBeenCalled();
     });
 
-    it("refuses scanned PDFs with no text", async () => {
+    it("accepts a PDF as processing and queues it", async () => {
       as("admin", "admin");
-
-      const response = await upload(
-        await uploadRequest(await fixture("should-reject/scanned.pdf"), "scan.pdf"),
-      );
-
-      expect(response.status).toBe(400);
-      expect((await response.json()).error).toMatch(/looks like a scan/);
-    });
-
-    it("refuses documents the content check rejects", async () => {
-      as("admin", "admin");
-      documentCheck.checkDocument.mockResolvedValue({
-        allowed: false,
-        documentType: "quotation",
-        reason: "A supplier's price quote.",
-      });
-
-      const response = await upload(
-        await uploadRequest(await fixture("should-reject/quotation.pdf"), "q.pdf"),
-      );
-
-      expect(response.status).toBe(422);
-      expect((await response.json()).error).toMatch(/looks like: quotation/);
-    });
-
-    it("refuses the upload when the content check can't run", async () => {
-      as("admin", "admin");
-      documentCheck.checkDocument.mockRejectedValue(new Error("rate limited"));
 
       const response = await upload(
         await uploadRequest(
@@ -196,14 +183,36 @@ describeDb("API routes", () => {
         ),
       );
 
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(202);
+      const body = await response.json();
+      expect(body).toMatchObject({
+        fileName: "handbook.pdf",
+        status: "processing",
+      });
+
+      const saved = await prisma.document.findUniqueOrThrow({
+        where: { id: body.documentId },
+      });
+      expect(saved).toMatchObject({
+        status: "processing",
+        uploadedById: "admin",
+      });
+      expect(ingest.enqueueUpload).toHaveBeenCalledWith(
+        body.documentId,
+        "handbook.pdf",
+        expect.any(Uint8Array),
+      );
     });
   });
 
   describe("POST /api/leave", () => {
     const requestLeave = (body: unknown, key?: string) =>
       leaveRoute.POST(
-        json("http://test/api/leave", body, key ? { "Idempotency-Key": key } : {}),
+        json(
+          "http://test/api/leave",
+          body,
+          key ? { "Idempotency-Key": key } : {},
+        ),
       );
 
     it("needs a session and an idempotency key", async () => {

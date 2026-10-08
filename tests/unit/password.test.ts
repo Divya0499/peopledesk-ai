@@ -21,7 +21,13 @@ describe("password hashing", () => {
   });
 
   it("rejects stored values it can't read instead of throwing", async () => {
-    for (const stored of ["", "plaintext", "bcrypt$a$b", "scrypt$$", "scrypt$abc"]) {
+    for (const stored of [
+      "",
+      "plaintext",
+      "bcrypt$a$b",
+      "scrypt$$",
+      "scrypt$abc",
+    ]) {
       expect(await verifyPassword("anything", stored)).toBe(false);
     }
   });

@@ -45,7 +45,9 @@ test("an admin can't remove their own admin role", async ({ page }) => {
   await page.getByLabel("Role").selectOption("employee");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(appAlert(page)).toHaveText("You can't remove your own admin role");
+  await expect(appAlert(page)).toHaveText(
+    "You can't remove your own admin role",
+  );
 });
 
 test("changing a manager moves the employee's approvals", async ({ page }) => {

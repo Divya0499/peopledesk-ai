@@ -9,7 +9,11 @@ export const users = {
   employee2: { email: "rohan@peopledesk.dev", name: "Rohan Das" },
 };
 
-export async function login(page: Page, email: string, password = DEMO_PASSWORD) {
+export async function login(
+  page: Page,
+  email: string,
+  password = DEMO_PASSWORD,
+) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);

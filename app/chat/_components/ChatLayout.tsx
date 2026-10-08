@@ -10,6 +10,8 @@ import LogoutButton from "./LogoutButton";
 import PdfUpload from "./PdfUpload";
 import type { ConversationSummary, DocumentOption, Message } from "./types";
 
+const DOCUMENT_POLL_MS = 2000;
+
 async function fetchDocuments(): Promise<DocumentOption[]> {
   const response = await fetch("/api/documents");
   const data = await response.json();
@@ -125,6 +127,24 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
       // The chat still works without the list
       .catch((error) => console.error("Could not load documents", error));
   }, []);
+
+  // Uploads are processed after the upload request returns, so while any is
+  // still processing, check back until it's ready, rejected or failed
+  const processing = documents.some((doc) => doc.status === "processing");
+
+  useEffect(() => {
+    if (!processing) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      fetchDocuments()
+        .then(setDocuments)
+        .catch((error) => console.error("Could not load documents", error));
+    }, DOCUMENT_POLL_MS);
+
+    return () => clearInterval(timer);
+  }, [processing]);
 
   // Deletes a chat; errors are shown by ConversationSidebar. If it was the
   // open one, start a new chat instead of showing a deleted conversation.

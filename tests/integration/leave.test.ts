@@ -207,9 +207,7 @@ describeDb("leave workflow", () => {
     ]);
 
     expect(await isApprover(managerUser)).toBe(true);
-    expect(await isApprover({ userId: "alice", role: "employee" })).toBe(
-      false,
-    );
+    expect(await isApprover({ userId: "alice", role: "employee" })).toBe(false);
   });
 
   it("lets the employee cancel a pending request, once", async () => {

@@ -7,7 +7,9 @@ async function openLeave(page: Page) {
     .getByRole("navigation", { name: "Main" })
     .getByRole("link", { name: "Leave" })
     .click();
-  await expect(page.getByRole("heading", { name: "Request leave" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Request leave" }),
+  ).toBeVisible();
 }
 
 const available = (page: Page) =>
@@ -24,7 +26,9 @@ test("an employee requests leave and their manager approves it", async ({
   await page.getByLabel(/Reason/).fill("Sister's wedding");
   await page.getByRole("button", { name: "Send request" }).click();
 
-  await expect(page.getByText(/sent to Vikram Shah for approval/)).toBeVisible();
+  await expect(
+    page.getByText(/sent to Vikram Shah for approval/),
+  ).toBeVisible();
   // The days are reserved straight away
   await expect(available(page)).toHaveText(String(before - 3));
   await expect(page.getByText("pending", { exact: true })).toBeVisible();
@@ -39,7 +43,9 @@ test("an employee requests leave and their manager approves it", async ({
 
   await login(page, users.employee.email);
   await openLeave(page);
-  await expect(page.getByText("Approved by Vikram Shah: “Enjoy!”")).toBeVisible();
+  await expect(
+    page.getByText("Approved by Vikram Shah: “Enjoy!”"),
+  ).toBeVisible();
   await expect(available(page)).toHaveText(String(before - 3));
 });
 
@@ -86,7 +92,9 @@ test("a request over the balance is refused", async ({ page }) => {
   const before = Number(await available(page).innerText());
 
   // The form's max stops this in the browser, so bypass it to check the server
-  await page.getByLabel("Days").evaluate((input) => input.removeAttribute("max"));
+  await page
+    .getByLabel("Days")
+    .evaluate((input) => input.removeAttribute("max"));
   await page.getByLabel("Days").fill(String(before + 1));
   await page.getByRole("button", { name: "Send request" }).click();
 

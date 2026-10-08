@@ -13,11 +13,31 @@ datasource db {
 }
 
 // An uploaded PDF. `id` matches the documentId stored on its Pinecone chunks.
+// The upload is accepted straight away as "processing"; reading, checking
+// and indexing it happen after the response (lib/ingest.ts).
 model Document {
-  id         String   @id @default(uuid())
-  fileName   String
-  chunkCount Int
-  createdAt  DateTime @default(now())
+  id           String         @id @default(uuid())
+  fileName     String
+  chunkCount   Int            @default(0)
+  status       DocumentStatus @default(processing)
+  // Why it was rejected or failed, for the admin who uploaded it
+  error        String?
+  uploadedById String?
+  uploadedBy   Employee?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([fileName])
+}
+
+// processing: being read, checked and indexed. ready: searchable.
+// rejected: not an HR document, or no readable text (the uploader can fix it).
+// failed: something went wrong on our side; uploading again may work.
+enum DocumentStatus {
+  processing
+  ready
+  rejected
+  failed
 }
 
 // Owned by one employee: /api/chat and /api/conversations must only let the
@@ -76,6 +96,7 @@ model Employee {
   leaveDecisions    LeaveApplication[] @relation("LeaveDecider")
   agentThreads      AgentThread[]
   conversations     Conversation[]
+  documents         Document[]
 
   @@index([managerId])
 }
