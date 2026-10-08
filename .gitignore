@@ -45,3 +45,4 @@ next-env.d.ts
 # test output
 /test-results/
 /playwright-report/
+/tests/eval/last-run.json
