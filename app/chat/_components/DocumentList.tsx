@@ -6,13 +6,14 @@ import type { DocumentOption } from "./types";
 
 type DocumentListProps = {
   documents: DocumentOption[];
-  // Resolves once the document is gone; rejects with the server's error
-  onDelete: (documentId: string) => Promise<void>;
+  // Resolves once the document is gone; rejects with the server's error.
+  // Omitted for users who may not delete, which hides the delete buttons
+  onDelete?: (documentId: string) => Promise<void>;
   // Shown under the heading, e.g. the upload button
   upload?: ReactNode;
 };
 
-// Uploaded PDFs, each with a button to delete it
+// Uploaded PDFs, each with a button to delete it when onDelete is given
 function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
   // The document the confirmation dialog is asking about; null when closed
   const [pendingDelete, setPendingDelete] = useState<DocumentOption | null>(
@@ -27,7 +28,7 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
   };
 
   const confirmDelete = async () => {
-    if (!pendingDelete) {
+    if (!pendingDelete || !onDelete) {
       return;
     }
 
@@ -39,7 +40,9 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
       setPendingDelete(null);
     } catch (err) {
       // Kept open with the error, so the person can retry or cancel
-      setError(err instanceof Error ? err.message : "Failed to delete document");
+      setError(
+        err instanceof Error ? err.message : "Failed to delete document",
+      );
     } finally {
       setDeleting(false);
     }
@@ -76,19 +79,21 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
               {doc.fileName}
             </span>
 
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setPendingDelete(doc);
-              }}
-              disabled={deleting}
-              aria-label={`Delete ${doc.fileName}`}
-              title="Delete"
-              className="shrink-0 rounded p-1 text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
-            >
-              <TrashIcon className="size-3.5" />
-            </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setPendingDelete(doc);
+                }}
+                disabled={deleting}
+                aria-label={`Delete ${doc.fileName}`}
+                title="Delete"
+                className="shrink-0 rounded p-1 text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
+              >
+                <TrashIcon className="size-3.5" />
+              </button>
+            )}
           </li>
         ))}
       </ul>

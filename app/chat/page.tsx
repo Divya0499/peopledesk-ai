@@ -14,7 +14,8 @@ async function Chat() {
     redirect("/login");
   }
 
-  return <ChatLayout />;
+  // Only hides the admin-only controls; the API routes still check the role
+  return <ChatLayout isAdmin={user.role === "admin"} />;
 }
 
 export default Chat;

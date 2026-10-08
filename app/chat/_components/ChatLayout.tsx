@@ -31,16 +31,20 @@ async function fetchConversations(): Promise<ConversationSummary[]> {
   return data.conversations;
 }
 
+type ChatLayoutProps = {
+  // Uploading and deleting documents are admin-only, so others don't get
+  // the buttons
+  isAdmin: boolean;
+};
+
 // Holds the document list so the upload button and the
 // chat's document dropdown stay in sync
-function ChatLayout() {
+function ChatLayout({ isAdmin }: ChatLayoutProps) {
   const [documents, setDocuments] = useState<DocumentOption[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(true);
   // "" means search all documents
   const [documentId, setDocumentId] = useState("");
-  const [conversations, setConversations] = useState<ConversationSummary[]>(
-    [],
-  );
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The chat currently shown, or null for a new, unsaved chat
   const [activeConversation, setActiveConversation] =
     useState<ConversationSummary | null>(null);
@@ -186,8 +190,10 @@ function ChatLayout() {
         footer={
           <DocumentList
             documents={documents}
-            onDelete={handleDeleteDocument}
-            upload={<PdfUpload onUploaded={handleUploaded} />}
+            onDelete={isAdmin ? handleDeleteDocument : undefined}
+            upload={
+              isAdmin ? <PdfUpload onUploaded={handleUploaded} /> : undefined
+            }
           />
         }
       />
