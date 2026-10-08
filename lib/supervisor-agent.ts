@@ -3,9 +3,15 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { approvalFromInterrupt, type ApprovalEvent } from "./agent-stream-events";
-import { createAgent } from "langchain";
+import { createAgent, dynamicSystemPromptMiddleware } from "langchain";
 import { ASSISTANT_SCOPE_RULES } from "./assistant-scope";
 import { model } from "./langchain-model";
+import { getMemories } from "./memory";
+import {
+  createGetMemoriesTool,
+  createGetMemoryTool,
+  createSaveMemoryTool,
+} from "./memory-tools";
 import {
   createAskHrAgentTool,
   createAskRagAgentTool,
@@ -137,8 +143,33 @@ export function createSupervisorAgent(
       createAskHrAgentTool(userId),
       createAskRagAgentTool(),
       createAskMcpHrAgentTool(userId),
+      createGetMemoryTool(userId),
+      createGetMemoriesTool(userId),
+      createSaveMemoryTool(userId),
     ],
-    systemPrompt: `
+    middleware: [
+      // Built before every model call rather than once, so the prompt has
+      // the memories as they are now (e.g. one saved earlier in this run)
+      dynamicSystemPromptMiddleware(async () =>
+        supervisorPrompt(await getMemoryContext(userId)),
+      ),
+    ],
+  });
+}
+
+// Loaded into the prompt rather than left to a tool call: Gemini doesn't
+// reliably think to look up a preference like response_style by itself
+// (the same reason as agent-node.ts)
+async function getMemoryContext(userId: string) {
+  const memories = await getMemories(userId);
+
+  return memories.length
+    ? memories.map((memory) => `- ${memory.key}: ${memory.value}`).join("\n")
+    : "No saved memories.";
+}
+
+function supervisorPrompt(memoryContext: string) {
+  return `
 You are a supervisor agent.
 
 ${ASSISTANT_SCOPE_RULES}
@@ -177,6 +208,23 @@ and delegate each part of it to the right specialist.
 - Never pass internal request IDs, thread IDs, tool-call IDs or other
   internal identifiers from a specialist's result on to the user.
 - Combine the specialists' results into one final answer.
-`,
-  });
+
+You handle the user's memories yourself with the memory tools; don't
+delegate them.
+
+Relevant long-term user memories:
+${memoryContext}
+
+Memory rules:
+- Use these memories when relevant to the user's request, e.g. follow a
+  saved response_style in every final answer.
+- Use only memories relevant to the current request.
+- Do not mention or expose unrelated memories.
+- Save information only when the user explicitly asks you to remember it.
+- Do not save temporary information, or employee data the HR tools already
+  provide (such as department or leave balance).
+- Never invent memories.
+- Use short snake_case keys and reuse the same key for the same kind of
+  information (e.g. response_style for how the user wants answers).
+`;
 }

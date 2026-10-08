@@ -15,11 +15,15 @@ type MessageListProps = {
   onApprovalDecision: (index: number, approved: boolean) => void;
 };
 
-const SUGGESTIONS = [
-  "Summarize the main points",
+// The HR questions work without any documents; the document ones are only
+// offered once a PDF has been uploaded
+const HR_SUGGESTIONS = [
+  "How many leaves do I have?",
+  "What can you help me with?",
+];
+const DOCUMENT_SUGGESTIONS = [
   "What are the key policies I should know?",
-  "List any important dates or deadlines",
-  "Explain the most technical section simply",
+  "Summarize the main points",
 ];
 
 function Avatar() {
@@ -51,25 +55,25 @@ function MessageList({
           What would you like to know?
         </h2>
         <p className="mt-2 max-w-md text-zinc-500">
-          {hasDocuments
-            ? "Ask anything about your documents. Answers cite the passages they came from."
-            : "Upload a PDF from the sidebar, then ask questions about it."}
+          Check your leave balance, apply for leave, or ask about company
+          documents.
         </p>
 
-        {hasDocuments && (
-          <div className="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-2">
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => onSuggestion(suggestion)}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-700 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+          {[
+            ...HR_SUGGESTIONS,
+            ...(hasDocuments ? DOCUMENT_SUGGESTIONS : []),
+          ].map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => onSuggestion(suggestion)}
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-700 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -116,7 +120,7 @@ function MessageList({
               {msg.text}
             </div>
           </div>
-        )
+        ),
       )}
 
       {waiting && (

@@ -64,6 +64,19 @@ export async function POST(request: Request) {
       const pdfData = await parser.getText();
       // Remove page markers like "-- 1 of 3 --" that pdf-parse adds
       text = pdfData.text.replace(/-- \d+ of \d+ --/g, " ");
+    } catch (error) {
+      // A damaged file, or not a PDF at all: the uploader's problem, not
+      // the server's, so say so instead of a 500
+      console.error(error);
+
+      return Response.json(
+        {
+          error: "This file isn't a valid PDF",
+        },
+        {
+          status: 400,
+        }
+      );
     } finally {
       await parser.destroy();
     }
@@ -159,6 +172,8 @@ export async function POST(request: Request) {
       fileName: file.name,
       documentId,
       chunks: chunks.length,
+      // A file with the same name was replaced by this upload
+      replaced: Boolean(existingDocument),
     });
   } catch (error) {
     console.error(error);

@@ -38,6 +38,8 @@ export function createMcpServer({ userId }: { userId: string }) {
 
   // A resource is data the client reads by URI, not an action the model
   // calls: the application decides when to read it and how to use it.
+  // Sample text for the MCP resource demo (mcp-client-test.ts) only. The chat
+  // doesn't read it: policy answers come from the uploaded documents.
   server.registerResource(
     "leave-policy",
     "company://policies/leave",

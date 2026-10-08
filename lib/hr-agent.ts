@@ -4,7 +4,6 @@ import { model } from "./langchain-model";
 import {
   createGetEmployeeDetailsTool,
   createGetLeaveBalanceTool,
-  getLeavePolicyTool,
 } from "./langchain-tools";
 
 // A specialist agent: only the read-only HR tools, no RAG, applyLeave or
@@ -35,7 +34,6 @@ export function createHrAgent(userId: string) {
     tools: [
       createGetLeaveBalanceTool(userId),
       createGetEmployeeDetailsTool(userId),
-      getLeavePolicyTool,
     ],
     // toolStrategy: the model returns the result by calling a generated tool,
     // which works with Gemini alongside the other tools.

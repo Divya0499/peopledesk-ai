@@ -6,7 +6,6 @@ import {
   createApplyLeaveTool,
   createGetEmployeeDetailsTool,
   createGetLeaveBalanceTool,
-  getLeavePolicyTool,
 } from "./langchain-tools";
 import {
   createGetMemoriesTool,
@@ -26,7 +25,6 @@ export function createGraphTools(
   return [
     createGetLeaveBalanceTool(userId),
     createGetEmployeeDetailsTool(userId),
-    getLeavePolicyTool,
     createApplyLeaveTool(userId, requestId),
     searchCompanyDocsTool,
     createGetMemoryTool(userId),

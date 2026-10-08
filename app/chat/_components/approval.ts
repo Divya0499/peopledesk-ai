@@ -28,7 +28,6 @@ export function toApproval(event: ApprovalEvent): Approval {
 
   return {
     threadId: event.threadId,
-    via: "chat",
     message: event.message,
     toolName: event.toolCall.name,
     days: typeof days === "number" ? days : undefined,

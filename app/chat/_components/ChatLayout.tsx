@@ -37,13 +37,10 @@ type ChatLayoutProps = {
   isAdmin: boolean;
 };
 
-// Holds the document list so the upload button and the
-// chat's document dropdown stay in sync
+// Holds the document list so the upload button, the sidebar list and the
+// chat's empty state stay in sync
 function ChatLayout({ isAdmin }: ChatLayoutProps) {
   const [documents, setDocuments] = useState<DocumentOption[]>([]);
-  const [loadingDocuments, setLoadingDocuments] = useState(true);
-  // "" means search all documents
-  const [documentId, setDocumentId] = useState("");
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The chat currently shown, or null for a new, unsaved chat
   const [activeConversation, setActiveConversation] =
@@ -124,9 +121,8 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
   useEffect(() => {
     fetchDocuments()
       .then(setDocuments)
-      // The chat still works without the list, it just searches everything
-      .catch((error) => console.error("Could not load documents", error))
-      .finally(() => setLoadingDocuments(false));
+      // The chat still works without the list
+      .catch((error) => console.error("Could not load documents", error));
   }, []);
 
   // Deletes a chat; errors are shown by ConversationSidebar. If it was the
@@ -160,18 +156,12 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
     }
 
     setDocuments((prev) => prev.filter((doc) => doc.id !== deletedId));
-
-    // Don't keep searching a document that no longer exists
-    if (documentId === deletedId) {
-      setDocumentId("");
-    }
   };
 
-  // Show the new PDF in the dropdown and chat with it straight away
-  const handleUploaded = async (uploadedId: string) => {
+  // Show the new PDF in the sidebar list
+  const handleUploaded = async () => {
     try {
       setDocuments(await fetchDocuments());
-      setDocumentId(uploadedId);
     } catch (error) {
       console.error("Could not load documents", error);
     }
@@ -232,9 +222,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
             activeConversation ? toMessages(activeConversation) : []
           }
           documents={documents}
-          loadingDocuments={loadingDocuments}
-          documentId={documentId}
-          onDocumentChange={setDocumentId}
           onConversationCreated={handleConversationCreated}
         />
       </div>

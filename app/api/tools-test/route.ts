@@ -5,7 +5,6 @@ import {
   applyLeave,
   getEmployeeDetails,
   getLeaveBalance,
-  getLeavePolicy,
   tools,
 } from "@/lib/tools";
 
@@ -113,18 +112,6 @@ When a user asks to apply for leave:
 
           if (functionCall.name === "getEmployeeDetails") {
             const result = await getEmployeeDetails(userId);
-
-            return {
-              id: functionCall.id,
-              name: functionCall.name,
-              result,
-            };
-          }
-
-          if (functionCall.name === "getLeavePolicy") {
-            const result = getLeavePolicy(
-              String(functionCall.args?.department),
-            );
 
             return {
               id: functionCall.id,

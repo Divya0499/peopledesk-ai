@@ -4,7 +4,6 @@ import {
   applyLeave,
   getEmployeeDetails,
   getLeaveBalance,
-  getLeavePolicy,
 } from "./tools";
 
 // Wraps the existing getLeaveBalance so the Prisma query stays in lib/tools.ts.
@@ -39,21 +38,6 @@ export function createGetEmployeeDetailsTool(userId: string) {
     },
   );
 }
-
-// Takes a department, not a userId, so the agent must first look up the
-// employee's department with getEmployeeDetails before it can call this.
-export const getLeavePolicyTool = tool(
-  async ({ department }) => {
-    return getLeavePolicy(department);
-  },
-  {
-    name: "getLeavePolicy",
-    description: "Get the leave policy for a department.",
-    schema: z.object({
-      department: z.string().describe("The employee's department"),
-    }),
-  },
-);
 
 // An action tool: it writes to PostgreSQL. applyLeave() still enforces the
 // leave rules and idempotency itself.

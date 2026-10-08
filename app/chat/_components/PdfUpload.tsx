@@ -3,61 +3,75 @@
 import { useRef, useState } from "react";
 import { UploadIcon } from "./icons";
 
-type Status =
-  | { type: "idle" }
-  | { type: "uploading"; fileName: string }
-  | { type: "success"; fileName: string; chunks: number }
-  | { type: "error"; message: string };
+// One picked file's progress. Each file is its own /api/upload request, so
+// one bad PDF fails on its own and the rest still upload.
+type FileStatus =
+  | { fileName: string; type: "waiting" | "uploading" }
+  | { fileName: string; type: "success"; chunks: number; replaced: boolean }
+  | { fileName: string; type: "error"; message: string };
 
 type PdfUploadProps = {
-  // Called with the new document's ID after a successful upload
-  onUploaded: (documentId: string) => void;
+  // Called after each file that uploads, so the list updates as they finish
+  onUploaded: () => void;
 };
 
+async function uploadFile(file: File) {
+  const formData = new FormData();
+
+  formData.append("file", file);
+
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error ?? `Server error: ${response.status}`);
+  }
+
+  return data as { chunks: number; replaced: boolean };
+}
+
 export default function PdfUpload({ onUploaded }: PdfUploadProps) {
-  const [status, setStatus] = useState<Status>({ type: "idle" });
+  const [files, setFiles] = useState<FileStatus[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const uploadFile = async (file: File) => {
-    setStatus({ type: "uploading", fileName: file.name });
+  const uploading = files.some(
+    (file) => file.type === "waiting" || file.type === "uploading",
+  );
 
-    try {
-      const formData = new FormData();
+  const setFileStatus = (index: number, status: FileStatus) =>
+    setFiles((prev) => prev.map((file, i) => (i === index ? status : file)));
 
-      formData.append("file", file);
+  // One at a time rather than all at once: every chunk of every file is
+  // embedded by the API, and parallel uploads hit its rate limit sooner
+  const uploadFiles = async (picked: File[]) => {
+    setFiles(picked.map((file) => ({ fileName: file.name, type: "waiting" })));
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+    for (const [index, file] of picked.entries()) {
+      setFileStatus(index, { fileName: file.name, type: "uploading" });
 
-      const data = await response.json();
+      try {
+        const { chunks, replaced } = await uploadFile(file);
 
-      if (!response.ok) {
-        throw new Error(data.error ?? `Server error: ${response.status}`);
-      }
-
-      setStatus({
-        type: "success",
-        fileName: data.fileName,
-        chunks: data.chunks,
-      });
-
-      onUploaded(data.documentId);
-    } catch (error) {
-      setStatus({
-        type: "error",
-        message: error instanceof Error ? error.message : "Upload failed",
-      });
-    } finally {
-      // Clear the input so the same file can be picked again
-      if (inputRef.current) {
-        inputRef.current.value = "";
+        setFileStatus(index, {
+          fileName: file.name,
+          type: "success",
+          chunks,
+          replaced,
+        });
+        onUploaded();
+      } catch (error) {
+        setFileStatus(index, {
+          fileName: file.name,
+          type: "error",
+          message: error instanceof Error ? error.message : "Upload failed",
+        });
       }
     }
   };
-
-  const uploading = status.type === "uploading";
 
   return (
     <div className="flex flex-col gap-2">
@@ -66,12 +80,16 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         ref={inputRef}
         type="file"
         accept="application/pdf,.pdf"
+        multiple
         className="hidden"
         onChange={(event) => {
-          const file = event.target.files?.[0];
+          const picked = Array.from(event.target.files ?? []);
 
-          if (file) {
-            uploadFile(file);
+          // Clear the input so the same files can be picked again
+          event.target.value = "";
+
+          if (picked.length > 0) {
+            uploadFiles(picked);
           }
         }}
       />
@@ -87,29 +105,42 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         ) : (
           <UploadIcon className="size-4" />
         )}
-        {uploading ? "Uploading..." : "Upload PDF"}
+        {uploading ? "Uploading..." : "Upload PDFs"}
       </button>
 
-      {/* Status message */}
-      {status.type === "uploading" && (
-        <p className="truncate text-xs text-zinc-500" title={status.fileName}>
-          Processing {status.fileName}
-        </p>
-      )}
+      {/* One status line per picked file */}
+      {files.length > 0 && (
+        <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto text-xs">
+          {files.map((file, i) => (
+            <li key={`${file.fileName}-${i}`} title={file.fileName}>
+              {file.type === "waiting" && (
+                <p className="truncate text-zinc-400">
+                  Waiting: {file.fileName}
+                </p>
+              )}
 
-      {status.type === "success" && (
-        <p
-          className="truncate text-xs text-emerald-600 dark:text-emerald-400"
-          title={status.fileName}
-        >
-          ✓ {status.fileName} ({status.chunks} chunks)
-        </p>
-      )}
+              {file.type === "uploading" && (
+                <p className="truncate text-zinc-500">
+                  Processing {file.fileName}
+                </p>
+              )}
 
-      {status.type === "error" && (
-        <p className="text-xs text-red-600 dark:text-red-400">
-          {status.message}
-        </p>
+              {file.type === "success" && (
+                <p className="truncate text-emerald-600 dark:text-emerald-400">
+                  ✓ {file.fileName} ({file.chunks} chunks
+                  {file.replaced ? ", replaced old version" : ""})
+                </p>
+              )}
+
+              {file.type === "error" && (
+                <p className="text-red-600 dark:text-red-400">
+                  <span className="block truncate">✗ {file.fileName}</span>
+                  {file.message}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

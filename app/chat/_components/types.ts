@@ -10,14 +10,10 @@ export type Source = {
 };
 
 // An action a run paused on, waiting for the person to approve or reject
-// it: from /api/chat's approval event, or HR assistant mode's
-// pending_approval
+// it, from /api/chat's approval event
 export type Approval = {
-  // Sent back to the resume route to continue the paused run
+  // Sent back to /api/chat/resume to continue the paused run
   threadId: string;
-  // Which route resumes it: /api/chat/resume, or /api/langgraph-test/resume
-  // for HR assistant mode
-  via: "chat" | "agent";
   message: string;
   // The tool waiting to run, e.g. applyLeave
   toolName: string;

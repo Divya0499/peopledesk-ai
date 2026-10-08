@@ -4,7 +4,6 @@ import {
   createApplyLeaveTool,
   createGetEmployeeDetailsTool,
   createGetLeaveBalanceTool,
-  getLeavePolicyTool,
 } from "./langchain-tools";
 import { searchCompanyDocsTool } from "./langchain-rag-tool";
 import { UNTRUSTED_TOOL_RESULT_RULES } from "./untrusted-content";
@@ -20,7 +19,6 @@ export function createLeaveAgent(userId: string, requestId: string) {
     tools: [
       createGetLeaveBalanceTool(userId),
       createGetEmployeeDetailsTool(userId),
-      getLeavePolicyTool,
       createApplyLeaveTool(userId, requestId),
       // RAG as a tool: the agent decides when to search the documents
       searchCompanyDocsTool,

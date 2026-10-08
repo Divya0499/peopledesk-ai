@@ -25,7 +25,7 @@ export function createAskMcpHrAgentTool(userId: string) {
     {
       name: "askMcpHrAgent",
       description:
-        "Delegate employee-specific HR questions (the current employee's leave balance) or leave policy questions to an MCP-backed HR agent.",
+        "Delegate the current employee's leave balance question to an MCP-backed HR agent. Not for policy questions.",
       schema: z.object({
         request: z.string().describe("The HR task to delegate"),
       }),

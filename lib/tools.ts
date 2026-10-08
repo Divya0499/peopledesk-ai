@@ -53,24 +53,6 @@ export async function getEmployeeDetails(userId: string) {
   };
 }
 
-export function getLeavePolicy(department: string) {
-  console.log("getLeavePolicy called for:", department);
-
-  if (department === "Engineering") {
-    return {
-      department,
-      annualLeave: 24,
-      carryForwardLimit: 8,
-    };
-  }
-
-  return {
-    department,
-    annualLeave: 20,
-    carryForwardLimit: 5,
-  };
-}
-
 type LeaveApplicationRecord = {
   userId: string;
   days: number;
@@ -236,21 +218,6 @@ export const tools: Tool[] = [
         parameters: {
           type: Type.OBJECT,
           properties: {},
-        },
-      },
-      {
-        name: "getLeavePolicy",
-        description:
-          "Get the leave policy for a specific department, including annual leave and carry-forward limits",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            department: {
-              type: Type.STRING,
-              description: "The employee's department",
-            },
-          },
-          required: ["department"],
         },
       },
       {

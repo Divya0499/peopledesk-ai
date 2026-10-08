@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import { useRef, useState } from "react";
 import { SendIcon } from "./icons";
 
@@ -19,8 +19,8 @@ function ChatInput({
   onSend,
   loading,
   toolbar,
-  placeholder = "Ask a question about your documents...",
-  hint = "Answers come from your uploaded PDFs. Check the sources.",
+  placeholder = "Ask about your leave or company documents...",
+  hint = "Leave is only applied after you approve it. Document answers show their sources.",
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,9 +95,7 @@ function ChatInput({
         </div>
       </form>
 
-      <p className="mt-2 text-center text-xs text-zinc-400">
-        {hint}
-      </p>
+      <p className="mt-2 text-center text-xs text-zinc-400">{hint}</p>
     </div>
   );
 }
