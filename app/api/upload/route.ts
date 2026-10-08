@@ -2,8 +2,17 @@ import { PDFParse } from "pdf-parse";
 import { embedDocument } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
 import { chunkText } from "@/lib/chunkText";
+import { checkDocument } from "@/lib/document-check";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_LABEL = "10 MB";
+// Room for the multipart boundaries and headers around the file
+const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 64 * 1024;
+// Less text than this is page numbers or stray marks, not real content: the
+// PDF is almost certainly scanned images
+const MIN_TEXT_CHARS = 50;
 
 // Uploaded documents feed every user's RAG answers, so only admins may add
 // or replace them. Checked before the file is read, so a rejected caller
@@ -19,6 +28,18 @@ export async function POST(request: Request) {
 
   if (user.role !== "admin") {
     return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Checked before the body is read, so an oversized upload is turned away
+  // without being loaded into memory. The header can be missing or wrong,
+  // so the file's own size is checked again below.
+  const contentLength = Number(request.headers.get("content-length"));
+
+  if (contentLength > MAX_REQUEST_BYTES) {
+    return Response.json(
+      { error: `PDF is too large. The limit is ${MAX_FILE_LABEL}.` },
+      { status: 413 }
+    );
   }
 
   try {
@@ -38,6 +59,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      return Response.json(
+        { error: "Only PDF files can be uploaded" },
+        { status: 400 }
+      );
+    }
+
+    if (file.size > MAX_FILE_BYTES) {
+      return Response.json(
+        { error: `PDF is too large. The limit is ${MAX_FILE_LABEL}.` },
+        { status: 413 }
+      );
+    }
+
     // Previous version of this file, if any; kept until the new one is indexed
     const existingDocument = await prisma.document.findFirst({
       where: {
@@ -53,6 +88,17 @@ export async function POST(request: Request) {
     // -----------------------------
 
     const arrayBuffer = await file.arrayBuffer();
+
+    // A real PDF starts with "%PDF-", whatever the file is called; this
+    // catches a renamed Word file or image before the parser sees it
+    const header = new TextDecoder().decode(arrayBuffer.slice(0, 5));
+
+    if (header !== "%PDF-") {
+      return Response.json(
+        { error: "This file isn't a valid PDF" },
+        { status: 400 }
+      );
+    }
 
     const parser = new PDFParse({
       data: new Uint8Array(arrayBuffer),
@@ -81,14 +127,46 @@ export async function POST(request: Request) {
       await parser.destroy();
     }
 
-    if (!text.trim()) {
+    if (text.replace(/\s/g, "").length < MIN_TEXT_CHARS) {
       return Response.json(
         {
-          error: "Could not extract text from PDF",
+          error:
+            "This PDF has no readable text. It looks like a scan; upload a PDF whose text can be selected.",
         },
         {
           status: 400,
         }
+      );
+    }
+
+    // -----------------------------
+    // 1b. Check it's an HR document
+    // -----------------------------
+
+    // Before chunking and embedding, so a rejected file costs one model call
+    let check;
+
+    try {
+      check = await checkDocument(file.name, text);
+    } catch (error) {
+      // Never let an unchecked file through
+      console.error("Document check failed:", error);
+
+      return Response.json(
+        {
+          error:
+            "Couldn't check this document right now. Please try again in a minute.",
+        },
+        { status: 503 }
+      );
+    }
+
+    if (!check.allowed) {
+      return Response.json(
+        {
+          error: `Not an HR document (looks like: ${check.documentType}). ${check.reason}`,
+        },
+        { status: 422 }
       );
     }
 

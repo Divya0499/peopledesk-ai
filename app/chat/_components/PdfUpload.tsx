@@ -108,6 +108,11 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         {uploading ? "Uploading..." : "Upload PDFs"}
       </button>
 
+      {/* The same rules /api/upload enforces, so admins know before picking */}
+      <p className="text-[11px] text-zinc-400">
+        HR and company policy PDFs only, up to 10 MB, with selectable text.
+      </p>
+
       {/* One status line per picked file */}
       {files.length > 0 && (
         <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto text-xs">
