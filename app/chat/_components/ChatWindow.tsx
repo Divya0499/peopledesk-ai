@@ -273,7 +273,7 @@ function ChatWindow({
           <MessageList
             messages={messages}
             loading={loading}
-            hasDocuments={documents.length > 0}
+            hasDocuments={documents.some((doc) => doc.status === "ready")}
             onSuggestion={sendMessage}
             onApprovalDecision={decideApproval}
           />

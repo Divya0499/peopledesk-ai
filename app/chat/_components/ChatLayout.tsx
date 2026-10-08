@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import NavLinks from "@/app/_components/NavLinks";
 import { withPendingApproval } from "./approval";
 import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
@@ -8,6 +9,8 @@ import { MenuIcon, PlusIcon } from "./icons";
 import LogoutButton from "./LogoutButton";
 import PdfUpload from "./PdfUpload";
 import type { ConversationSummary, DocumentOption, Message } from "./types";
+
+const DOCUMENT_POLL_MS = 2000;
 
 async function fetchDocuments(): Promise<DocumentOption[]> {
   const response = await fetch("/api/documents");
@@ -125,6 +128,24 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
       .catch((error) => console.error("Could not load documents", error));
   }, []);
 
+  // Uploads are processed after the upload request returns, so while any is
+  // still processing, check back until it's ready, rejected or failed
+  const processing = documents.some((doc) => doc.status === "processing");
+
+  useEffect(() => {
+    if (!processing) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      fetchDocuments()
+        .then(setDocuments)
+        .catch((error) => console.error("Could not load documents", error));
+    }, DOCUMENT_POLL_MS);
+
+    return () => clearInterval(timer);
+  }, [processing]);
+
   // Deletes a chat; errors are shown by ConversationSidebar. If it was the
   // open one, start a new chat instead of showing a deleted conversation.
   const handleDeleteConversation = async (deletedId: string) => {
@@ -212,6 +233,7 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
             <PlusIcon className="size-5" />
           </button>
 
+          <NavLinks isAdmin={isAdmin} />
           <LogoutButton />
         </header>
 

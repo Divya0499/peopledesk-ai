@@ -3,15 +3,16 @@
 import { useRef, useState } from "react";
 import { UploadIcon } from "./icons";
 
-// One picked file's progress. Each file is its own /api/upload request, so
-// one bad PDF fails on its own and the rest still upload.
+// One picked file's progress sending it. Each file is its own /api/upload
+// request, so one bad file fails on its own and the rest still upload. Once
+// sent, the server checks and indexes it, and the documents list shows how
+// that ends.
 type FileStatus =
-  | { fileName: string; type: "waiting" | "uploading" }
-  | { fileName: string; type: "success"; chunks: number; replaced: boolean }
+  | { fileName: string; type: "waiting" | "uploading" | "sent" }
   | { fileName: string; type: "error"; message: string };
 
 type PdfUploadProps = {
-  // Called after each file that uploads, so the list updates as they finish
+  // Called after each file is accepted, so the list shows it processing
   onUploaded: () => void;
 };
 
@@ -30,8 +31,6 @@ async function uploadFile(file: File) {
   if (!response.ok) {
     throw new Error(data.error ?? `Server error: ${response.status}`);
   }
-
-  return data as { chunks: number; replaced: boolean };
 }
 
 export default function PdfUpload({ onUploaded }: PdfUploadProps) {
@@ -45,8 +44,8 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
   const setFileStatus = (index: number, status: FileStatus) =>
     setFiles((prev) => prev.map((file, i) => (i === index ? status : file)));
 
-  // One at a time rather than all at once: every chunk of every file is
-  // embedded by the API, and parallel uploads hit its rate limit sooner
+  // One at a time, so the per-file lines fill in order and one slow file
+  // doesn't hold back the error for another
   const uploadFiles = async (picked: File[]) => {
     setFiles(picked.map((file) => ({ fileName: file.name, type: "waiting" })));
 
@@ -54,14 +53,9 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
       setFileStatus(index, { fileName: file.name, type: "uploading" });
 
       try {
-        const { chunks, replaced } = await uploadFile(file);
+        await uploadFile(file);
 
-        setFileStatus(index, {
-          fileName: file.name,
-          type: "success",
-          chunks,
-          replaced,
-        });
+        setFileStatus(index, { fileName: file.name, type: "sent" });
         onUploaded();
       } catch (error) {
         setFileStatus(index, {
@@ -126,14 +120,13 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
 
               {file.type === "uploading" && (
                 <p className="truncate text-zinc-500">
-                  Processing {file.fileName}
+                  Sending {file.fileName}
                 </p>
               )}
 
-              {file.type === "success" && (
+              {file.type === "sent" && (
                 <p className="truncate text-emerald-600 dark:text-emerald-400">
-                  ✓ {file.fileName} ({file.chunks} chunks
-                  {file.replaced ? ", replaced old version" : ""})
+                  ✓ {file.fileName} sent
                 </p>
               )}
 

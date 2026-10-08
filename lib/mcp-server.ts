@@ -2,16 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getLeaveBalance } from "./tools";
 
 // The MCP server with its tools and resources, and no transport attached: the
-// stdio entry (mcp-server-stdio.ts) and the HTTP route (app/api/mcp) each
-// connect one.
+// stdio entry (mcp-server-stdio.ts), the HTTP route (app/api/mcp) and the
+// in-process client (mcp-client.ts) each connect one.
 // A factory because one server can only be connected to one transport, and
 // the HTTP route needs a fresh one per request.
 // It reuses the existing getLeaveBalance unchanged.
 //
 // userId is the already-authenticated user: from the login session in the
-// HTTP route, or MCP_USER_ID for the stdio process. getLeaveBalance is bound
-// to it and takes no arguments, so no MCP client can ask about another
-// employee.
+// HTTP route and the in-process client, or MCP_USER_ID for the stdio
+// process. getLeaveBalance is bound to it and takes no arguments, so no MCP
+// client can ask about another employee.
 export function createMcpServer({ userId }: { userId: string }) {
   const server = new McpServer({
     name: "hr-mcp-server",

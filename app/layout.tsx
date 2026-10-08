@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My AI App",
-  description: "Company knowledge assistant powered by Gemini and Pinecone",
+  title: "PeopleDesk AI",
+  description: "AI HR assistant: leave requests with manager approval, and answers from company policies",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -59,7 +59,7 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
         )}
       </h2>
 
-      <ul className="max-h-48 overflow-y-auto px-3">
+      <ul className="max-h-64 overflow-y-auto px-3">
         {documents.length === 0 && (
           <li className="px-2 py-1.5 text-sm text-zinc-400">
             No documents uploaded
@@ -71,12 +71,39 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
             key={doc.id}
             className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-zinc-200/60 dark:hover:bg-zinc-800"
           >
-            <FileIcon className="size-4 shrink-0 text-indigo-500" />
-            <span
-              className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300"
-              title={doc.fileName}
-            >
-              {doc.fileName}
+            {doc.status === "processing" ? (
+              <span
+                aria-hidden
+                className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"
+              />
+            ) : (
+              <FileIcon
+                className={`size-4 shrink-0 ${
+                  doc.status === "ready" ? "text-indigo-500" : "text-red-500"
+                }`}
+              />
+            )}
+            <span className="min-w-0 flex-1">
+              <span
+                className="block truncate text-sm text-zinc-700 dark:text-zinc-300"
+                title={doc.fileName}
+              >
+                {doc.fileName}
+              </span>
+              {doc.status === "processing" && (
+                <span className="block text-xs text-zinc-400">
+                  Checking and indexing…
+                </span>
+              )}
+              {(doc.status === "rejected" || doc.status === "failed") && (
+                <span
+                  className="line-clamp-2 text-xs text-red-600 dark:text-red-400"
+                  title={doc.error ?? undefined}
+                >
+                  {doc.status === "rejected" ? "Rejected" : "Failed"}:{" "}
+                  {doc.error}
+                </span>
+              )}
             </span>
 
             {onDelete && (

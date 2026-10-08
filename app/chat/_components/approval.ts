@@ -1,3 +1,4 @@
+import { leaveConfirmText } from "@/lib/leave-text";
 import type { Approval, Message } from "./types";
 
 // A pending approval as /api/chat streams it (the approval event), and as
@@ -14,9 +15,7 @@ export function pendingApprovalText(event: ApprovalEvent) {
   const days = event.toolCall.args.days;
 
   if (event.toolCall.name === "applyLeave" && typeof days === "number") {
-    const dayLabel = days === 1 ? "day" : "days";
-
-    return `I've prepared a leave application for ${days} ${dayLabel}. It is waiting for your approval before anything is submitted.`;
+    return leaveConfirmText(days);
   }
 
   return event.message;
