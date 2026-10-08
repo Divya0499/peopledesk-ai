@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import NavLinks from "@/app/_components/NavLinks";
 import { withPendingApproval } from "./approval";
 import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
@@ -212,6 +213,7 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
             <PlusIcon className="size-5" />
           </button>
 
+          <NavLinks isAdmin={isAdmin} />
           <LogoutButton />
         </header>
 

@@ -7,6 +7,7 @@ import {
 } from "@/lib/agent-stream-events";
 import type { RagSource } from "@/lib/langchain-rag";
 import { toLangChainMessages } from "@/lib/langchain-history";
+import { leaveConfirmText } from "@/lib/leave-text";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -23,7 +24,7 @@ const HISTORY_LIMIT = 20;
 // The reply when a run pauses for approval while another approval of this
 // user's is still waiting: only one at a time
 const APPROVAL_ALREADY_PENDING =
-  "You already have a leave application waiting for approval. Please approve or reject it before starting a new one.";
+  "You already have a leave request waiting for your confirmation. Please confirm or cancel it before starting a new one.";
 
 // Saved as the assistant's turn when a run pauses for approval, so the
 // conversation history shows what happened instead of an unanswered question
@@ -33,9 +34,7 @@ function pendingApprovalText(
   const days = event.toolCall.args.days;
 
   if (event.toolCall.name === "applyLeave" && typeof days === "number") {
-    const dayLabel = days === 1 ? "day" : "days";
-
-    return `I've prepared a leave application for ${days} ${dayLabel}. It is waiting for your approval before anything is submitted.`;
+    return leaveConfirmText(days);
   }
 
   return event.message;
