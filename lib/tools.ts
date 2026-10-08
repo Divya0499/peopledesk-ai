@@ -1,4 +1,3 @@
-import { Type, type Tool } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type LeaveStatus } from "@/lib/generated/prisma/client";
 import { withRetry } from "@/lib/retry";
@@ -196,44 +195,3 @@ export async function applyLeave(
     throw error;
   }
 }
-
-// Describes the tools to Gemini. Gemini never runs a function itself; it only
-// asks us to call it, and we run it and send back the result.
-// None of them take a userId: the route runs them for the session's user, so
-// no prompt or injected text can make Gemini pick another employee.
-export const tools: Tool[] = [
-  {
-    functionDeclarations: [
-      {
-        name: "getLeaveBalance",
-        description: "Get the current employee's leave balance",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {},
-        },
-      },
-      {
-        name: "getEmployeeDetails",
-        description: "Get the current employee's details",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {},
-        },
-      },
-      {
-        name: "applyLeave",
-        description: "Submit a leave application for the current employee",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            days: {
-              type: Type.NUMBER,
-              description: "Number of leave days to apply for",
-            },
-          },
-          required: ["days"],
-        },
-      },
-    ],
-  },
-];
