@@ -1,4 +1,4 @@
-import { pinecone } from "@/lib/pinecone";
+import { getIndex } from "@/lib/pinecone";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
@@ -12,7 +12,7 @@ export async function GET() {
   }
 
   try {
-    const index = pinecone.index(process.env.PINECONE_INDEX!);
+    const index = getIndex();
 
     const [stats, documents] = await Promise.all([
       index.describeIndexStats(),
