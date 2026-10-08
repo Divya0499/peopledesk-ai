@@ -9,7 +9,9 @@ import type { RagSource } from "@/lib/langchain-rag";
 import { toLangChainMessages } from "@/lib/langchain-history";
 import { leaveConfirmText } from "@/lib/leave-text";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 import { getCurrentUser } from "@/lib/session";
+import { UsageTracker } from "@/lib/usage-tracker";
 import {
   createSupervisorAgent,
   deleteSupervisorRun,
@@ -40,6 +42,8 @@ function pendingApprovalText(
   return event.message;
 }
 
+const CHAT_REQUESTS_PER_MINUTE = 20;
+
 // The chat endpoint: the supervisor agent decides which specialist (company
 // documents, HR, MCP HR) answers, and what it's doing streams back as NDJSON,
 // one AgentStreamEvent per line (see agent-stream-events.ts).
@@ -49,6 +53,26 @@ export async function POST(request: Request) {
 
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Every question costs several model calls, so one user (or a script with
+  // their cookie) can't run up the bill
+  const limit = rateLimit(
+    `chat:${user.userId}`,
+    CHAT_REQUESTS_PER_MINUTE,
+    60_000,
+  );
+
+  if (!limit.allowed) {
+    return Response.json(
+      {
+        error: `You're sending messages too quickly. Please wait ${limit.retryAfterSeconds} seconds.`,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      },
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -113,6 +137,11 @@ export async function POST(request: Request) {
     checkpointer: supervisorCheckpointer,
   });
 
+  // Adds up tokens across every model call in this request, including the
+  // specialist agents', for the usage log line below
+  const usage = new UsageTracker();
+  const startedAt = Date.now();
+
   // Earlier turns plus this question, so follow-ups make sense
   const stream = await agent.stream(
     {
@@ -123,6 +152,7 @@ export async function POST(request: Request) {
     },
     {
       ...config,
+      callbacks: [usage],
       // "updates" for tool calls and results, "messages" for the answer as
       // it's generated; toAgentStreamEvents turns both into events
       streamMode: ["updates", "messages"],
@@ -293,6 +323,23 @@ export async function POST(request: Request) {
           console.error("Could not delete finished thread", error);
         });
       }
+
+      // One JSON line per request: easy to search in any log tool, and the
+      // numbers to watch for cost (tokens) and speed (duration)
+      const summary = usage.getSummary();
+      console.log(
+        JSON.stringify({
+          event: "chat_request",
+          userId: user.userId,
+          durationMs: Date.now() - startedAt,
+          llmCalls: summary.llmCalls,
+          toolCalls: summary.toolCalls,
+          inputTokens: summary.inputTokens,
+          outputTokens: summary.outputTokens,
+          errors: summary.errors,
+          pausedForApproval: Boolean(approval),
+        }),
+      );
 
       controller.close();
     },
