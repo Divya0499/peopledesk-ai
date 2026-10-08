@@ -30,11 +30,15 @@ export type Message = {
   approval?: Approval;
 };
 
-// An uploaded PDF, as returned by GET /api/documents
+// An uploaded PDF, as returned by GET /api/documents. Employees only get
+// ready ones; admins also see uploads still processing or that didn't make it.
 export type DocumentOption = {
   id: string;
   fileName: string;
   chunkCount: number;
+  status: "processing" | "ready" | "rejected" | "failed";
+  // Why it was rejected or failed
+  error: string | null;
 };
 
 // A saved chat, as returned by GET /api/conversations

@@ -87,7 +87,7 @@ function ConversationSidebar({
               <SparkIcon className="size-4" />
             </span>
             <span className="font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              My AI App
+              PeopleDesk AI
             </span>
           </div>
 

@@ -16,6 +16,10 @@ import {
   supervisorConfig,
 } from "@/lib/supervisor-agent";
 
+// Resuming finishes the turn with more model calls, longer than a
+// serverless default allows
+export const maxDuration = 300;
+
 const NO_LONGER_AVAILABLE =
   "This approval request is no longer available. Please start a new request.";
 

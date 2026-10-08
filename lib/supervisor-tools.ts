@@ -18,7 +18,7 @@ export function hrRunId(supervisorThreadId: string, toolCallId: string) {
 // so the model can't read it as a temporary failure worth retrying: a
 // rejection is final for that request.
 const LEAVE_REJECTED =
-  "The employee rejected this leave application, so it was not submitted. Do not retry this request. The employee can make a new leave request whenever they want.";
+  "The employee cancelled this leave request at the confirmation step, so it was not sent to their manager. Do not retry this request. The employee can make a new leave request whenever they want.";
 
 // The HR graph wrapped as a tool: to the supervisor it's just one more tool
 // it can call. The supervisor writes the request, hrGraph runs its own loop

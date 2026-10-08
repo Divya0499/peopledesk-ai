@@ -1,9 +1,9 @@
-import { pinecone } from "@/lib/pinecone";
-import { prisma } from "@/lib/prisma";
+import { listDocuments } from "@/lib/ingest";
 import { getCurrentUser } from "@/lib/session";
 
-// Any logged-in user may see which documents the knowledge base holds; only
-// admins may change them (upload and DELETE /api/documents/[id]).
+// Any logged-in user may see which documents can be searched; admins also
+// see uploads still processing, rejected or failed. Only admins may change
+// them (POST /api/upload and DELETE /api/documents/[id]).
 export async function GET() {
   const user = await getCurrentUser();
 
@@ -12,20 +12,9 @@ export async function GET() {
   }
 
   try {
-    const index = pinecone.index(process.env.PINECONE_INDEX!);
+    const documents = await listDocuments(user.role === "admin");
 
-    const [stats, documents] = await Promise.all([
-      index.describeIndexStats(),
-      prisma.document.findMany({
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
-
-    return Response.json({
-      message: "Documents API",
-      stats,
-      documents,
-    });
+    return Response.json({ documents });
   } catch (error) {
     console.error(error);
 
@@ -33,7 +22,7 @@ export async function GET() {
       {
         error: "Internal server error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -13,11 +13,31 @@ datasource db {
 }
 
 // An uploaded PDF. `id` matches the documentId stored on its Pinecone chunks.
+// The upload is accepted straight away as "processing"; reading, checking
+// and indexing it happen after the response (lib/ingest.ts).
 model Document {
-  id         String   @id @default(uuid())
-  fileName   String
-  chunkCount Int
-  createdAt  DateTime @default(now())
+  id           String         @id @default(uuid())
+  fileName     String
+  chunkCount   Int            @default(0)
+  status       DocumentStatus @default(processing)
+  // Why it was rejected or failed, for the admin who uploaded it
+  error        String?
+  uploadedById String?
+  uploadedBy   Employee?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([fileName])
+}
+
+// processing: being read, checked and indexed. ready: searchable.
+// rejected: not an HR document, or no readable text (the uploader can fix it).
+// failed: something went wrong on our side; uploading again may work.
+enum DocumentStatus {
+  processing
+  ready
+  rejected
+  failed
 }
 
 // Owned by one employee: /api/chat and /api/conversations must only let the
@@ -52,18 +72,33 @@ model Message {
   @@index([conversationId, createdAt])
 }
 
-// Demo data for the function-calling exercise; read by the getLeaveBalance tool.
+// A person who can log in. Admins manage employees and company documents;
+// anyone with reports is a manager and approves their leave.
 model Employee {
-  id                String             @id
+  id                String             @id @default(uuid())
   name              String
+  // The login name, stored lowercase so lookups don't depend on case
+  email             String             @unique
+  // scrypt hash from lib/password.ts; null means the account can't log in
+  passwordHash      String?
+  // Days the employee can still request: pending requests are already
+  // taken off, and given back if they're rejected or cancelled
   leaveBalance      Int
   department        String
   // Read on every request by getCurrentUser(), so a role change applies
   // immediately instead of waiting for the session cookie to expire.
   role              UserRole           @default(employee)
-  leaveApplications LeaveApplication[]
+  // Who approves this employee's leave. Null: any admin approves it.
+  managerId         String?
+  manager           Employee?          @relation("ManagerReports", fields: [managerId], references: [id], onDelete: SetNull)
+  reports           Employee[]         @relation("ManagerReports")
+  leaveApplications LeaveApplication[] @relation("LeaveApplicant")
+  leaveDecisions    LeaveApplication[] @relation("LeaveDecider")
   agentThreads      AgentThread[]
   conversations     Conversation[]
+  documents         Document[]
+
+  @@index([managerId])
 }
 
 enum UserRole {
@@ -71,23 +106,36 @@ enum UserRole {
   admin
 }
 
+// pending: waiting for the manager, days already reserved.
+// approved / rejected: decided by the manager (rejected gives the days back).
+// cancelled: withdrawn by the employee while pending (days given back).
 enum LeaveStatus {
+  pending
   approved
   rejected
+  cancelled
 }
 
-// One row per applyLeave request. The unique requestId lets a retried request
-// be recognised so its days are not deducted twice.
+// One row per leave request. The unique requestId lets a retried request
+// be recognised so its days are not reserved twice.
 model LeaveApplication {
-  id        String      @id @default(uuid())
-  userId    String
-  employee  Employee    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days      Int
-  requestId String      @unique
-  status    LeaveStatus
-  createdAt DateTime    @default(now())
+  id           String      @id @default(uuid())
+  userId       String
+  employee     Employee    @relation("LeaveApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  days         Int
+  // The employee's own words, if they gave a reason
+  reason       String?
+  requestId    String      @unique
+  status       LeaveStatus @default(pending)
+  // Who approved or rejected it, when, and any note they left
+  decidedById  String?
+  decidedBy    Employee?   @relation("LeaveDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime    @default(now())
 
   @@index([userId])
+  @@index([status])
 }
 
 // Long-term facts about a user (e.g. response_style → "short answers").

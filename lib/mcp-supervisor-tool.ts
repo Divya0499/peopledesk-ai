@@ -18,7 +18,7 @@ export function createAskMcpHrAgentTool(userId: string) {
         // .text rather than .content: Gemini's content can be an array of parts
         return result.messages[result.messages.length - 1].text;
       } finally {
-        // Stops the MCP server process started for this call
+        // Closes the MCP connection opened for this call
         await client.close();
       }
     },

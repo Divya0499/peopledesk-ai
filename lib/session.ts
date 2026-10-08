@@ -15,6 +15,8 @@ const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type CurrentUser = {
   userId: string;
+  name: string;
+  email: string;
   role: UserRole;
 };
 
@@ -95,10 +97,33 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const employee = await prisma.employee.findUnique({
     where: { id: session.userId },
-    select: { id: true, role: true },
+    select: { id: true, name: true, email: true, role: true },
   });
 
   if (!employee) return null;
 
-  return { userId: employee.id, role: employee.role };
+  return {
+    userId: employee.id,
+    name: employee.name,
+    email: employee.email,
+    role: employee.role,
+  };
+}
+
+// For admin-only routes: the admin, or the response to send back instead
+// (401 without a session, 403 for anyone else)
+export async function requireAdmin(): Promise<
+  { user: CurrentUser; error?: never } | { user?: never; error: Response }
+> {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  if (user.role !== "admin") {
+    return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
+  return { user };
 }

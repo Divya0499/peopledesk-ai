@@ -20,7 +20,7 @@ export async function approvalNode(state: typeof GraphState.State) {
   // ignores a falsy resume, so Command({ resume: false }) fails with
   // "Received empty Command input" and a rejection could never resume.
   const { approved } = interrupt<object, { approved: boolean }>({
-    message: "Please approve the leave application.",
+    message: "Please confirm the leave request.",
     toolCall,
   });
 

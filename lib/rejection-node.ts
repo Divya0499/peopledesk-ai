@@ -5,6 +5,8 @@ import { AIMessage } from "@langchain/core/messages";
 // message. applyLeave never runs, so the database is untouched.
 export async function rejectionNode() {
   return {
-    messages: [new AIMessage("Your leave request was not approved.")],
+    messages: [
+      new AIMessage("Okay, I've cancelled that. The leave request was not sent."),
+    ],
   };
 }

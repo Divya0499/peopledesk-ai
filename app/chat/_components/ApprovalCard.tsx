@@ -8,7 +8,7 @@ type ApprovalCardProps = {
 };
 
 // The action a run paused on. Nothing is written to the database until the
-// person clicks Approve.
+// person confirms; a leave request then goes to their manager.
 function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
   const isLeave =
     approval.toolName === "applyLeave" && typeof approval.days === "number";
@@ -18,13 +18,13 @@ function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30">
       <p className="font-medium text-zinc-900 dark:text-zinc-50">
         {isLeave
-          ? `Leave application: ${approval.days} ${dayLabel}`
+          ? `Leave request: ${approval.days} ${dayLabel}`
           : approval.message}
       </p>
       <p className="mt-1 text-zinc-600 dark:text-zinc-400">
         {isLeave
-          ? "Your leave is deducted only after you approve."
-          : "Nothing happens until you approve."}
+          ? "Sent to your manager only after you confirm."
+          : "Nothing happens until you confirm."}
       </p>
 
       {approval.status === "pending" ? (
@@ -35,7 +35,7 @@ function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
             disabled={disabled}
             className="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Approve
+            Confirm
           </button>
           <button
             type="button"
@@ -43,7 +43,7 @@ function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
             disabled={disabled}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            Reject
+            Cancel
           </button>
         </div>
       ) : (
@@ -54,7 +54,11 @@ function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
               : "text-red-700 dark:text-red-400"
           }`}
         >
-          {approval.status === "approved" ? "Approved" : "Rejected"}
+          {approval.status === "approved"
+            ? isLeave
+              ? "Sent for manager approval"
+              : "Confirmed"
+            : "Cancelled"}
         </p>
       )}
     </div>

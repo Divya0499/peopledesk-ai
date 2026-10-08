@@ -5,8 +5,8 @@ import { createMcpClient } from "./mcp-client";
 
 // The MCP server's getLeaveBalance as a LangChain tool. The agent never
 // imports getLeaveBalance: each call goes through the MCP client to the
-// server process.
-// Takes no userId: the client's server process is already bound to the
+// MCP server.
+// Takes no userId: the client's server is already bound to the
 // session's user (see getMcpTools), so neither the model nor this call can
 // ask the MCP server about another employee.
 export function createMcpLeaveBalanceTool(client: Client) {
@@ -33,9 +33,9 @@ export function createMcpLeaveBalanceTool(client: Client) {
   );
 }
 
-// Starts an MCP server process bound to this userId (from the login session),
-// connects to it, and bridges its tools into LangChain tools an agent can use.
-// The caller must client.close() when done, which also stops the process.
+// Connects to an MCP server bound to this userId (from the login session),
+// and bridges its tools into LangChain tools an agent can use.
+// The caller must client.close() when done.
 // A hand-written first adapter; a generic one would build these from
 // client.listTools() instead.
 export async function getMcpTools(userId: string) {

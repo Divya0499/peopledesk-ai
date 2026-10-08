@@ -8,8 +8,8 @@ import { getMcpTools } from "./mcp-langchain-tools";
 // only from the uploaded company documents, so a hardcoded copy can't
 // contradict them.
 // Returns the MCP client too: the caller must client.close() when done,
-// which stops the server process started for this agent.
-// Created per request because its MCP server process is bound to that
+// which closes the MCP connection opened for this agent.
+// Created per request because its MCP server is bound to that
 // request's user.
 export async function createMcpAgent(userId: string) {
   const { client, tools } = await getMcpTools(userId);
