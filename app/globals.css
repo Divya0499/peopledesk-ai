@@ -26,6 +26,24 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* New chat messages slide up into place */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.message-in {
+  animation: message-in 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-in {
+    animation: none;
+  }
+}
+
 /* Quiet scrollbars for the sidebar and message list */
 * {
   scrollbar-width: thin;

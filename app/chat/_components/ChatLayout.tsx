@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import NavLinks from "@/app/_components/NavLinks";
+import UserCard from "@/app/_components/UserCard";
 import { withPendingApproval } from "./approval";
 import ChatWindow from "./ChatWindow";
 import ConversationSidebar from "./ConversationSidebar";
 import DocumentList from "./DocumentList";
 import { MenuIcon, PlusIcon } from "./icons";
-import LogoutButton from "./LogoutButton";
 import PdfUpload from "./PdfUpload";
 import type { ConversationSummary, DocumentOption, Message } from "./types";
 
@@ -36,9 +36,11 @@ async function fetchConversations(): Promise<ConversationSummary[]> {
 
 type ChatLayoutProps = {
   isAdmin: boolean;
+  userName: string;
+  userRole: string;
 };
 
-function ChatLayout({ isAdmin }: ChatLayoutProps) {
+function ChatLayout({ isAdmin, userName, userRole }: ChatLayoutProps) {
   const [documents, setDocuments] = useState<DocumentOption[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -178,19 +180,23 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
         onDelete={handleDeleteConversation}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        nav={<NavLinks isAdmin={isAdmin} variant="vertical" />}
         footer={
-          <DocumentList
-            documents={documents}
-            onDelete={isAdmin ? handleDeleteDocument : undefined}
-            upload={
-              isAdmin ? <PdfUpload onUploaded={handleUploaded} /> : undefined
-            }
-          />
+          <>
+            <DocumentList
+              documents={documents}
+              onDelete={isAdmin ? handleDeleteDocument : undefined}
+              upload={
+                isAdmin ? <PdfUpload onUploaded={handleUploaded} /> : undefined
+              }
+            />
+            <UserCard name={userName} role={userRole} />
+          </>
         }
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-100 px-4 dark:border-zinc-900">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-200/70 bg-white/80 px-4 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/80">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -212,9 +218,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
           >
             <PlusIcon className="size-5" />
           </button>
-
-          <NavLinks isAdmin={isAdmin} />
-          <LogoutButton />
         </header>
 
         <ChatWindow
@@ -224,6 +227,7 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
             activeConversation ? toMessages(activeConversation) : []
           }
           documents={documents}
+          firstName={userName.split(" ")[0]}
           onConversationCreated={handleConversationCreated}
         />
       </div>

@@ -57,15 +57,15 @@ function ChatInput({
   };
 
   return (
-    <div className="px-4 pt-2 pb-4">
+    <div className="px-4 pt-2 pb-3">
       <form
-        className="mx-auto w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-900"
+        className="mx-auto w-full max-w-3xl rounded-3xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-900 dark:shadow-black/20"
         onSubmit={handleSubmit}
       >
         <textarea
           ref={textareaRef}
           rows={1}
-          className="block w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-50"
+          className="block w-full resize-none bg-transparent px-5 pt-4 pb-1 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-50"
           value={message}
           onChange={(e) => {
             setMessage(e.target.value);
@@ -77,14 +77,14 @@ function ChatInput({
           autoFocus
         />
 
-        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+        <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
           <div className="min-w-0">{toolbar}</div>
 
           <button
             type="submit"
             disabled={loading || !message.trim()}
             aria-label={loading ? "Sending" : "Send"}
-            className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-500 disabled:bg-none disabled:shadow-none disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
           >
             {loading ? (
               <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

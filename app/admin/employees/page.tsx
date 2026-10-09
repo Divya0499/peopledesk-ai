@@ -19,7 +19,11 @@ async function EmployeesPage() {
   }
 
   return (
-    <PageShell user={user} title="Employees">
+    <PageShell
+      user={user}
+      title="Employees"
+      description="Add people, set their manager and adjust leave balances."
+    >
       <EmployeeManager currentUserId={user.userId} />
     </PageShell>
   );

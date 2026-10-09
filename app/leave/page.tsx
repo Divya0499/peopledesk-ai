@@ -14,7 +14,11 @@ async function LeavePage() {
   }
 
   return (
-    <PageShell user={user} title="Leave">
+    <PageShell
+      user={user}
+      title="Leave"
+      description="Your leave balance, requests and team approvals in one place."
+    >
       <LeaveDashboard />
     </PageShell>
   );
