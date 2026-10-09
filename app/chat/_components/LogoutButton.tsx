@@ -7,7 +7,7 @@ import { LogoutIcon } from "./icons";
 
 // Asks the server to clear the session cookie. The cookie is HttpOnly, so
 // the browser can't remove it itself; only the logout route can.
-function LogoutButton() {
+function LogoutButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -34,13 +34,24 @@ function LogoutButton() {
       type="button"
       onClick={logout}
       disabled={loggingOut}
-      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+      title="Log out"
+      className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
     >
-      <LogoutIcon className="size-4" />
-      <span className="hidden sm:inline">
-        {loggingOut ? "Logging out…" : "Log out"}
-      </span>
-      <span className="sr-only sm:hidden">Log out</span>
+      {loggingOut ? (
+        <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      ) : (
+        <LogoutIcon className="size-4" />
+      )}
+      {compact ? (
+        <span className="sr-only">Log out</span>
+      ) : (
+        <>
+          <span className="hidden sm:inline">
+            {loggingOut ? "Logging out…" : "Log out"}
+          </span>
+          <span className="sr-only sm:hidden">Log out</span>
+        </>
+      )}
     </button>
   );
 }

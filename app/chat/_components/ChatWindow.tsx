@@ -7,6 +7,8 @@ import type { Approval, DocumentOption, Message, Source } from "./types";
 
 type ChatWindowProps = {
   documents: DocumentOption[];
+  // for the greeting on an empty chat
+  firstName: string;
   initialConversationId: string;
   initialMessages: Message[];
   onConversationCreated: (conversationId: string) => void;
@@ -14,6 +16,7 @@ type ChatWindowProps = {
 
 function ChatWindow({
   documents,
+  firstName,
   initialConversationId,
   initialMessages,
   onConversationCreated,
@@ -248,6 +251,7 @@ function ChatWindow({
           <MessageList
             messages={messages}
             loading={loading}
+            firstName={firstName}
             hasDocuments={documents.some((doc) => doc.status === "ready")}
             onSuggestion={sendMessage}
             onApprovalDecision={decideApproval}

@@ -1,32 +1,67 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ApprovalCard from "./ApprovalCard";
-import { SparkIcon } from "./icons";
+import {
+  BookIcon,
+  CalendarIcon,
+  ClockIcon,
+  FileIcon,
+  HelpIcon,
+  SparkIcon,
+} from "./icons";
 import SourceList from "./SourceList";
 import type { Message } from "./types";
 
 type MessageListProps = {
   messages: Message[];
   loading: boolean;
+  firstName: string;
   hasDocuments: boolean;
   onSuggestion: (text: string) => void;
   onApprovalDecision: (index: number, approved: boolean) => void;
 };
 
+type Suggestion = {
+  icon: typeof SparkIcon;
+  title: string;
+  prompt: string;
+};
+
 // document questions only show up once there's a PDF
-const HR_SUGGESTIONS = [
-  "How many leaves do I have?",
-  "What can you help me with?",
+const HR_SUGGESTIONS: Suggestion[] = [
+  {
+    icon: ClockIcon,
+    title: "Check my balance",
+    prompt: "How many leaves do I have?",
+  },
+  {
+    icon: CalendarIcon,
+    title: "Apply for leave",
+    prompt: "I want to apply for 1 day of leave",
+  },
+  {
+    icon: HelpIcon,
+    title: "What can you do?",
+    prompt: "What can you help me with?",
+  },
 ];
-const DOCUMENT_SUGGESTIONS = [
-  "What are the key policies I should know?",
-  "Summarize the main points",
+const DOCUMENT_SUGGESTIONS: Suggestion[] = [
+  {
+    icon: BookIcon,
+    title: "Key policies",
+    prompt: "What are the key policies I should know?",
+  },
+  {
+    icon: FileIcon,
+    title: "Summarize documents",
+    prompt: "Summarize the main points",
+  },
 ];
 
 function Avatar() {
   return (
-    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white">
-      <SparkIcon className="size-3.5" />
+    <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm shadow-indigo-500/25">
+      <SparkIcon className="size-4" />
     </span>
   );
 }
@@ -34,6 +69,7 @@ function Avatar() {
 function MessageList({
   messages,
   loading,
+  firstName,
   hasDocuments,
   onSuggestion,
   onApprovalDecision,
@@ -42,33 +78,49 @@ function MessageList({
   const waiting = loading && !(last?.role === "ai" && last.text);
 
   if (messages.length === 0 && !loading) {
+    const suggestions = [
+      ...HR_SUGGESTIONS,
+      ...(hasDocuments ? DOCUMENT_SUGGESTIONS : []),
+    ];
+
     return (
-      <div className="flex flex-col items-center pt-[12vh] text-center">
-        <span className="grid size-12 place-items-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
-          <SparkIcon className="size-6" />
+      <div className="flex flex-col items-center pt-4 text-center sm:pt-[8vh]">
+        <span className="grid size-12 place-items-center sm:size-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-xl shadow-indigo-500/30">
+          <SparkIcon className="size-7" />
         </span>
-        <h2 className="mt-5 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          What would you like to know?
+        <h2 className="mt-5 text-2xl font-semibold sm:mt-6 sm:text-3xl tracking-tight text-zinc-900 dark:text-zinc-50">
+          Hi {firstName}, how can I help?
         </h2>
-        <p className="mt-2 max-w-md text-zinc-500">
-          Check your leave balance, apply for leave, or ask about company
-          documents.
+        <p className="mt-2 max-w-md text-zinc-500 dark:text-zinc-400">
+          Check your leave balance, apply for leave, or ask anything about
+          company policies.
         </p>
 
-        <div className="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-2">
-          {[
-            ...HR_SUGGESTIONS,
-            ...(hasDocuments ? DOCUMENT_SUGGESTIONS : []),
-          ].map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => onSuggestion(suggestion)}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-700 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30"
-            >
-              {suggestion}
-            </button>
-          ))}
+        <div className="mt-8 grid w-full max-w-2xl gap-2.5 sm:mt-10 sm:gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {suggestions.map((suggestion) => {
+            const Icon = suggestion.icon;
+
+            return (
+              <button
+                key={suggestion.prompt}
+                type="button"
+                onClick={() => onSuggestion(suggestion.prompt)}
+                className="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 text-left shadow-sm transition sm:flex-col sm:items-start sm:p-4 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-500/10 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-950/60 dark:text-indigo-400">
+                  <Icon className="size-4.5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                    {suggestion.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">
+                    {suggestion.prompt}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -78,17 +130,17 @@ function MessageList({
     <>
       {messages.map((msg, i) =>
         msg.role === "user" ? (
-          <div key={i} className="flex justify-end">
-            <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-zinc-900 px-4 py-2.5 text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <div key={i} className="message-in flex justify-end">
+            <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-gradient-to-br from-indigo-600 to-violet-600 px-4 py-2.5 text-white shadow-sm shadow-indigo-500/20">
               {msg.text}
             </div>
           </div>
         ) : msg.role === "ai" ? (
           msg.text && (
-            <div key={i} className="flex gap-3">
+            <div key={i} className="message-in flex gap-3">
               <Avatar />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <div className="prose prose-zinc max-w-none pt-0.5 dark:prose-invert prose-pre:bg-zinc-900 prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
+                <div className="prose prose-zinc max-w-none pt-1 prose-p:leading-relaxed prose-headings:font-semibold dark:prose-invert prose-pre:bg-zinc-900 prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {msg.text}
                   </ReactMarkdown>
@@ -119,16 +171,19 @@ function MessageList({
       )}
 
       {waiting && (
-        <div className="flex items-center gap-3" aria-label="Thinking">
+        <div className="message-in flex items-center gap-3" aria-label="Thinking">
           <Avatar />
-          <div className="flex gap-1">
-            {[0, 150, 300].map((delay) => (
-              <span
-                key={delay}
-                className="size-2 animate-bounce rounded-full bg-zinc-400"
-                style={{ animationDelay: `${delay}ms` }}
-              />
-            ))}
+          <div className="flex items-center gap-2 rounded-2xl bg-zinc-100 px-3.5 py-2.5 dark:bg-zinc-800/80">
+            <div className="flex gap-1">
+              {[0, 150, 300].map((delay) => (
+                <span
+                  key={delay}
+                  className="size-1.5 animate-bounce rounded-full bg-indigo-500"
+                  style={{ animationDelay: `${delay}ms` }}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-zinc-500">Thinking…</span>
           </div>
         </div>
       )}

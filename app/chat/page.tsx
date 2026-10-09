@@ -12,7 +12,13 @@ async function Chat() {
   }
 
   // Only hides the admin-only controls; the API routes still check the role
-  return <ChatLayout isAdmin={user.role === "admin"} />;
+  return (
+    <ChatLayout
+      isAdmin={user.role === "admin"}
+      userName={user.name}
+      userRole={user.role}
+    />
+  );
 }
 
 export default Chat;

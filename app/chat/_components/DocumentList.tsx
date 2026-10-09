@@ -45,8 +45,8 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
 
   return (
     <section className="border-t border-zinc-200 dark:border-zinc-800">
-      <h2 className="flex items-center justify-between px-4 pt-3 pb-1.5 text-xs font-medium text-zinc-500">
-        Documents
+      <h2 className="flex items-center justify-between px-5 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
+        Policy documents
         {documents.length > 0 && (
           <span className="rounded-full bg-zinc-200 px-1.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             {documents.length}
@@ -54,7 +54,7 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
         )}
       </h2>
 
-      <ul className="max-h-64 overflow-y-auto px-3">
+      <ul className="max-h-48 overflow-y-auto px-3">
         {documents.length === 0 && (
           <li className="px-2 py-1.5 text-sm text-zinc-400">
             No documents uploaded
