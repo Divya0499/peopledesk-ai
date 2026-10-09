@@ -1,5 +1,8 @@
 import type { PineconeRecord } from "@pinecone-database/pinecone";
 import { PDFParse } from "pdf-parse";
+// pdfjs needs DOMMatrix etc from @napi-rs/canvas. importing it here makes
+// sure vercel includes it in the bundle
+import { CanvasFactory } from "pdf-parse/worker";
 
 import { chunkText } from "@/lib/chunkText";
 import { checkDocument } from "@/lib/document-check";
@@ -26,7 +29,7 @@ export class DocumentProcessingError extends Error {
 
 export async function extractPdfText(bytes: Uint8Array) {
   // copy because the parser transfers the buffer to a worker
-  const parser = new PDFParse({ data: bytes.slice() });
+  const parser = new PDFParse({ data: bytes.slice(), CanvasFactory });
 
   try {
     const pdfData = await parser.getText();
