@@ -4,23 +4,15 @@ import { enqueueUpload } from "@/lib/ingest";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
-// Processing runs after the response (after()) but still counts against
-// this limit, and embedding a long PDF takes a while
+// after() still counts against this
 export const maxDuration = 300;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILE_LABEL = "10 MB";
-// Room for the multipart boundaries and headers around the file
+// extra room for the multipart headers
 const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
-// Uploaded documents feed every user's RAG answers, so only admins may add
-// or replace them. Checked before the file is read, so a rejected caller
-// costs no parsing or embedding.
-// Fast checks (size, type) answer straight away; the slow work runs after
-// the response, so the admin isn't left waiting on embedding.
 export async function POST(request: Request) {
-  // Who the caller is and their role come only from the session; the role is
-  // read from the database on each request, not from the cookie
   const user = await getCurrentUser();
 
   if (!user) {
@@ -31,9 +23,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Checked before the body is read, so an oversized upload is turned away
-  // without being loaded into memory. The header can be missing or wrong,
-  // so the file's own size is checked again below.
+  // check before reading the body. header can lie, so file.size is checked again below
   const contentLength = Number(request.headers.get("content-length"));
 
   if (contentLength > MAX_REQUEST_BYTES) {
@@ -44,7 +34,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Returns null if the request isn't multipart/form-data
     const formData = await request.formData().catch(() => null);
 
     const file = formData?.get("file");
@@ -76,8 +65,7 @@ export async function POST(request: Request) {
 
     const bytes = new Uint8Array(await file.arrayBuffer());
 
-    // A real PDF starts with "%PDF-", whatever the file is called; this
-    // catches a renamed Word file or image before anything else runs
+    // catches renamed word files / images
     if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") {
       return Response.json(
         { error: "This file isn't a valid PDF" },
@@ -85,14 +73,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Recorded as processing and handed back straight away; reading,
-    // checking and embedding run after the response (lib/ingest.ts), and
-    // the documents list shows how it ended
     const document = await prisma.document.create({
       data: { fileName: file.name, uploadedById: user.userId },
       select: { id: true, fileName: true, status: true },
     });
 
+    // the slow part (parsing, checking, embedding) runs after we respond
     after(() => enqueueUpload(document.id, file.name, bytes));
 
     return Response.json(

@@ -29,10 +29,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-// The leave page: balance, the request form, the employee's own requests and,
-// for a manager, their team's requests waiting for a decision. Every action
-// reloads it from the server rather than patching local state, so the
-// numbers always match what was actually saved.
+// just reload everything after each action, simpler than updating state
 function LeaveDashboard() {
   const [data, setData] = useState<LeaveData | null>(null);
   const [error, setError] = useState("");
@@ -47,7 +44,6 @@ function LeaveDashboard() {
   }, []);
 
   useEffect(() => {
-    // The first load sets state once its fetch resolves
     // eslint-disable-next-line react-hooks/set-state-in-effect
     reload();
   }, [reload]);

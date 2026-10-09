@@ -2,9 +2,7 @@ import { execSync } from "node:child_process";
 
 import { config } from "dotenv";
 
-// Runs once before all tests: brings the test database's schema up to date.
-// Refuses any database whose name doesn't end in _test, because the
-// integration tests delete every row they touch.
+// tests delete rows, so only allow dbs ending in _test
 export default function setup() {
   config({ path: ".env.test", quiet: true });
 

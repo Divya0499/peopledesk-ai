@@ -5,7 +5,6 @@ import { useState } from "react";
 import type { Employee } from "./types";
 
 type EmployeeFormProps = {
-  // The employee being edited; undefined to add a new one
   employee?: Employee;
   employees: Employee[];
   onSaved: () => void;
@@ -16,8 +15,6 @@ const inputClass =
   "mt-1.5 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50";
 const labelClass = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
 
-// Adds an employee, or edits one. The server validates everything again
-// (unique email, manager loops, password length); the form just collects it.
 function EmployeeForm({
   employee,
   employees,
@@ -56,7 +53,7 @@ function EmployeeForm({
           body: JSON.stringify({
             ...rest,
             leaveBalance: Number(leaveBalance),
-            // Blank when editing keeps the current password
+            // empty = keep current password
             ...(password && { password }),
           }),
         },
@@ -74,8 +71,6 @@ function EmployeeForm({
     }
   }
 
-  // Anyone but the employee themselves can be their manager; the server
-  // also rejects a choice that would make a reporting loop
   const managerOptions = employees.filter((other) => other.id !== employee?.id);
 
   return (

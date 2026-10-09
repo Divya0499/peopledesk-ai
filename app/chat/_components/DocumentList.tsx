@@ -6,16 +6,12 @@ import type { DocumentOption } from "./types";
 
 type DocumentListProps = {
   documents: DocumentOption[];
-  // Resolves once the document is gone; rejects with the server's error.
-  // Omitted for users who may not delete, which hides the delete buttons
+  // not passed for non-admins
   onDelete?: (documentId: string) => Promise<void>;
-  // Shown under the heading, e.g. the upload button
   upload?: ReactNode;
 };
 
-// Uploaded PDFs, each with a button to delete it when onDelete is given
 function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
-  // The document the confirmation dialog is asking about; null when closed
   const [pendingDelete, setPendingDelete] = useState<DocumentOption | null>(
     null,
   );
@@ -39,7 +35,6 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
       await onDelete(pendingDelete.id);
       setPendingDelete(null);
     } catch (err) {
-      // Kept open with the error, so the person can retry or cancel
       setError(
         err instanceof Error ? err.message : "Failed to delete document",
       );

@@ -9,14 +9,11 @@ type MessageListProps = {
   messages: Message[];
   loading: boolean;
   hasDocuments: boolean;
-  // Sends one of the starter questions from the empty state
   onSuggestion: (text: string) => void;
-  // Approve or reject the leave application in the message at this index
   onApprovalDecision: (index: number, approved: boolean) => void;
 };
 
-// The HR questions work without any documents; the document ones are only
-// offered once a PDF has been uploaded
+// document questions only show up once there's a PDF
 const HR_SUGGESTIONS = [
   "How many leaves do I have?",
   "What can you help me with?",
@@ -42,7 +39,6 @@ function MessageList({
   onApprovalDecision,
 }: MessageListProps) {
   const last = messages[messages.length - 1];
-  // Show the typing dots until the answer's first words arrive
   const waiting = loading && !(last?.role === "ai" && last.text);
 
   if (messages.length === 0 && !loading) {
@@ -88,7 +84,6 @@ function MessageList({
             </div>
           </div>
         ) : msg.role === "ai" ? (
-          // The empty answer placeholder is covered by the typing dots below
           msg.text && (
             <div key={i} className="flex gap-3">
               <Avatar />

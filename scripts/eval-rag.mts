@@ -1,19 +1,12 @@
-// Measures how well the document Q&A answers: run with `npm run eval:rag`.
-//
-// Indexes the documents in tests/eval/docs into a throwaway Pinecone
-// namespace with the app's own pipeline (chunking, embedding), asks every
-// question in tests/eval/dataset.json through askRag() (retrieval,
-// reranking, answer), scores the answers, then deletes the namespace. The
-// real documents in the default namespace are never touched.
-//
-// Needs the same keys as the app (GEMINI_API_KEY, PINECONE_API_KEY,
-// PINECONE_INDEX) and DATABASE_URL, since lib/ingest.ts loads Prisma.
+// npm run eval:rag
+// indexes tests/eval/docs into a temp pinecone namespace, runs the questions
+// from dataset.json through askRag() and deletes the namespace after
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const namespace = `eval-${Date.now()}`;
-// Set before any lib code calls getIndex()
+// has to be set before getIndex() is called
 process.env.PINECONE_NAMESPACE = namespace;
 
 const { indexDocument } = await import("../lib/ingest");
@@ -47,7 +40,7 @@ const OUTPUT = path.join(ROOT, "tests/eval/last-run.json");
 
 const NOT_FOUND = /couldn.t find|not (available|mentioned|specified|included)|no information|doesn.t (say|mention|specify)/i;
 
-// Pinecone serverless makes new vectors searchable after a short delay
+// new vectors take a bit to show up in pinecone
 async function waitForVectors(expected: number) {
   for (let attempt = 0; attempt < 30; attempt++) {
     const stats = await getIndex().describeIndexStats();
@@ -110,7 +103,7 @@ async function main() {
 
   for (const q of questions) {
     const started = Date.now();
-    // Retries a rate-limited call instead of scoring it as a wrong answer
+    // retry so a rate limit doesn't count as a wrong answer
     const { text, sources } = await withRetry(() => askRag(q.question), 4);
     const latencyMs = Date.now() - started;
     const cited = [...new Set(sources.map((source) => source.source))];
@@ -166,7 +159,6 @@ async function main() {
 try {
   await main();
 } finally {
-  // Removes only this run's namespace
   await getIndex()
     .deleteAll()
     .catch((error) => console.error("Couldn't delete the eval namespace:", error));

@@ -1,7 +1,4 @@
-// What the chat assistants will and won't help with. Shared by the HR
-// assistant (agent-node.ts) and the supervisor (supervisor-agent.ts) so both
-// chat modes decline the same requests. Only a prompt rule: it keeps the
-// assistant on topic, it doesn't limit what the tools can do.
+// used by both the HR agent and the supervisor
 export const ASSISTANT_SCOPE_RULES = `
 You are a workplace assistant for this company's employees. Only help with:
 - the current employee's own HR details: leave balance, department, leave

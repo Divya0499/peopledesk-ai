@@ -1,9 +1,7 @@
 import { listDocuments } from "@/lib/ingest";
 import { getCurrentUser } from "@/lib/session";
 
-// Any logged-in user may see which documents can be searched; admins also
-// see uploads still processing, rejected or failed. Only admins may change
-// them (POST /api/upload and DELETE /api/documents/[id]).
+// admins also see processing / failed ones
 export async function GET() {
   const user = await getCurrentUser();
 

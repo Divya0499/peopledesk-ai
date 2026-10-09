@@ -7,7 +7,6 @@ import type { Approval, DocumentOption, Message, Source } from "./types";
 
 type ChatWindowProps = {
   documents: DocumentOption[];
-  // A saved conversation to continue; "" and [] for a new chat
   initialConversationId: string;
   initialMessages: Message[];
   onConversationCreated: (conversationId: string) => void;
@@ -21,11 +20,9 @@ function ChatWindow({
 }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [loading, setLoading] = useState(false);
-  // "" until the first message creates a conversation
   const [conversationId, setConversationId] = useState(initialConversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to the newest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -58,7 +55,6 @@ function ChatWindow({
     setMessages((prev) => [...prev, { role: "error", text: errorText }]);
   };
 
-  // Resumes the run paused on the leave application in messages[index]
   const decideApproval = async (index: number, approved: boolean) => {
     const approval = messages[index]?.approval;
 
@@ -66,7 +62,6 @@ function ChatWindow({
       return;
     }
 
-    // Shows the decision on the card, so its buttons go away
     const markDecided = () =>
       setMessages((prev) =>
         prev.map((message, i) =>
@@ -86,9 +81,6 @@ function ChatWindow({
 
     setLoading(true);
 
-    // The reply streams back like any chat answer, and the server saves it
-    // to the conversation. Only threadId and the decision are sent; the
-    // server knows who's asking and which conversation it is.
     try {
         const response = await fetch("/api/chat/resume", {
           method: "POST",
@@ -107,22 +99,19 @@ function ChatWindow({
       await streamAiReply(response);
       markDecided();
     } catch (err) {
-      // The card stays pending, so the person can try again
+      // card stays pending so they can try again
       addError(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Reads an /api/chat or /api/chat/resume response (one JSON event per
-  // line) into a new AI message as it streams. An approval event turns that
-  // message into an Approve / Reject card. Throws if the run failed.
+  // reads the NDJSON stream from /api/chat or /api/chat/resume
   const streamAiReply = async (response: Response) => {
     if (!response.body) {
       throw new Error("No response body");
     }
 
-    // Add empty AI message
     setMessages((prev) => [
       ...prev,
       {
@@ -135,15 +124,10 @@ function ChatWindow({
     const decoder = new TextDecoder();
 
     let result = "";
-    // The agent may search the documents more than once, so each sources
-    // event adds to these, keyed by chunk id, rather than replacing them
     const sourceMap = new Map<string, Source>();
     let sources: Source[] | undefined;
-    // Set when the run paused for approval; shown as a card on the message
     let approval: Approval | undefined;
-    // Sent as an event: the 200 has already gone out when a run fails
     let streamError: string | undefined;
-    // Holds a JSON line that was split across two network chunks
     let buffer = "";
 
     const updateAiMessage = () =>
@@ -171,8 +155,7 @@ function ChatWindow({
         stream: true,
       });
 
-      // The server sends one JSON event per line; the last piece may be
-      // an incomplete line, so keep it for the next chunk
+      // last line might be incomplete, keep it for the next chunk
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
@@ -183,7 +166,7 @@ function ChatWindow({
 
         const event = JSON.parse(line);
 
-        // tool_start / tool_result aren't shown in the chat yet
+        // TODO: show tool_start / tool_result in the UI
         if (event.type === "text") {
           result += event.content;
         } else if (event.type === "sources") {
@@ -206,7 +189,6 @@ function ChatWindow({
     }
 
     if (streamError) {
-      // Drop the AI bubble if the run failed before writing anything
       if (!result) {
         setMessages((prev) => prev.slice(0, -1));
       }
@@ -221,17 +203,13 @@ function ChatWindow({
   };
 
   const sendMessage = async (text: string) => {
-    // Shown straight away. Only for the UI: the server keeps the
-    // conversation itself and saves this question with its answer.
     setMessages((prev) => [...prev, { role: "user", text }]);
     setLoading(true);
 
     try {
       let currentConversationId = conversationId;
 
-      // First question: create the conversation before sending it
       if (!currentConversationId) {
-        // Title the chat after its first question, kept short for the sidebar
         const question = text.trim();
         const title =
           question.length > 40 ? `${question.slice(0, 40).trimEnd()}…` : question;
@@ -244,8 +222,6 @@ function ChatWindow({
         headers: {
           "Content-Type": "application/json",
         },
-        // Just the new question: the server loads the earlier messages from
-        // the database, so the client can't change what the AI was told
         body: JSON.stringify({
           conversationId: currentConversationId,
           question: text,
@@ -267,7 +243,6 @@ function ChatWindow({
   };
   return (
     <>
-      {/* Messages */}
       <main className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
           <MessageList

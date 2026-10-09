@@ -1,10 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-// Unit tests need nothing. Integration tests use a real PostgreSQL database
-// from TEST_DATABASE_URL; tests/support/global-setup.ts refuses to run them
-// against a database whose name doesn't end in _test, so they can never
-// wipe real data.
+// integration tests need TEST_DATABASE_URL (name must end in _test)
 export default defineConfig({
   resolve: {
     alias: {

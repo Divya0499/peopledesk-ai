@@ -6,13 +6,8 @@ import {
   UNTRUSTED_DOCUMENT_RULES,
 } from "./untrusted-content";
 
-// Uploaded documents answer every employee's questions, so only company-wide
-// HR and workplace documents belong here. A quotation or invoice would give
-// wrong answers, and a payslip, CV or offer letter would show one person's
-// private data to everyone.
+// only company-wide HR docs. payslips/CVs etc would leak someone's data to everyone
 
-// The start of the document is enough to tell what kind it is, and keeps the
-// check fast and cheap on a long PDF
 const SAMPLE_CHARS = 6000;
 
 const checkSchema = z.object({
@@ -57,9 +52,6 @@ allowed to false.
 ${UNTRUSTED_DOCUMENT_RULES}
 `.trim();
 
-// Asks the model whether the PDF's text belongs in the HR knowledge base.
-// Throws if the model can't be reached; the caller must then reject the
-// upload rather than let an unchecked file through.
 export async function checkDocument(
   fileName: string,
   text: string,

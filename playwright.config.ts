@@ -1,10 +1,8 @@
 import { config } from "dotenv";
 import { defineConfig } from "@playwright/test";
 
-// End-to-end tests drive a production build of the app in Chrome, against
-// the test database (TEST_DATABASE_URL), on its own port so a running dev
-// server is left alone. They cover the flows that don't call the AI model:
-// login, roles, the leave workflow and employee management.
+// runs a prod build on a different port against the test db.
+// only tests things that don't need gemini
 config({ path: ".env.test", quiet: true });
 
 const PORT = 3200;
@@ -37,6 +35,8 @@ export default defineConfig({
       DATABASE_URL: testDatabaseUrl,
       SESSION_SECRET:
         process.env.SESSION_SECRET ?? "e2e-secret-that-is-at-least-32-characters",
+      // the build crashes without a key, but these tests never call gemini
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? "e2e-placeholder-key",
     },
   },
 });

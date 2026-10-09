@@ -1,16 +1,13 @@
 import { leaveConfirmText } from "@/lib/leave-text";
 import type { Approval, Message } from "./types";
 
-// A pending approval as /api/chat streams it (the approval event), and as
-// GET /api/conversations returns it to restore the card after a reload
 export type ApprovalEvent = {
   threadId: string;
   message: string;
   toolCall: { name: string; args: Record<string, unknown> };
 };
 
-// The same words /api/chat saves to the conversation for a paused run, so
-// the chat reads the same before and after a reload
+// same text the server saves, so it looks the same after a reload
 export function pendingApprovalText(event: ApprovalEvent) {
   const days = event.toolCall.args.days;
 
@@ -21,7 +18,6 @@ export function pendingApprovalText(event: ApprovalEvent) {
   return event.message;
 }
 
-// The Approve / Reject card for an /api/chat pause
 export function toApproval(event: ApprovalEvent): Approval {
   const days = event.toolCall.args.days;
 
@@ -34,9 +30,7 @@ export function toApproval(event: ApprovalEvent): Approval {
   };
 }
 
-// Puts a still-pending approval's card back on the saved "waiting for your
-// approval" message (the latest one, if there are several), or adds that
-// message if it isn't there
+// put the card back on the last "waiting for approval" message after a reload
 export function withPendingApproval(
   messages: Message[],
   pending: ApprovalEvent | null | undefined,

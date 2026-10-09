@@ -1,9 +1,6 @@
 import { config } from "dotenv";
 
-// Runs in every test file before anything is imported. lib/prisma.ts reads
-// DATABASE_URL when it's first imported, so point it at the test database
-// here. .env.test (optional, git-ignored) can set TEST_DATABASE_URL locally;
-// CI sets it directly.
+// has to run before lib/prisma.ts is imported
 config({ path: ".env.test", quiet: true });
 
 if (process.env.TEST_DATABASE_URL) {

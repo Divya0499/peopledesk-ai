@@ -17,9 +17,6 @@ const requestSchema = z.object({
   reason: z.string().max(MAX_REASON_LENGTH).optional(),
 });
 
-// The leave form: the same requestLeave() the chat assistant uses. The
-// client sends a fresh Idempotency-Key per request, so a retried or
-// double-clicked submit reserves the days only once.
 export async function POST(request: Request) {
   const user = await getCurrentUser();
 
@@ -51,7 +48,6 @@ export async function POST(request: Request) {
     const result = await requestLeave(
       user.userId,
       body.data.days,
-      // Scoped to the user, so one person's key can never match another's
       `form:${user.userId}:${requestId}`,
       body.data.reason,
     );
@@ -71,8 +67,6 @@ export async function POST(request: Request) {
   }
 }
 
-// Everything the leave page shows: the caller's balance and requests, and,
-// if they approve anyone's leave, the requests waiting for their decision
 export async function GET() {
   const user = await getCurrentUser();
 
@@ -92,8 +86,7 @@ export async function GET() {
       pendingDays: "pendingDays" in balance ? balance.pendingDays : 0,
       mine,
       isApprover: approver,
-      // null rather than [] when they approve no one, so the page can tell
-      // "no team" from "nothing waiting"
+      // null = not a manager, [] = nothing waiting
       teamPending: approver ? await listPendingForApprover(user) : null,
     });
   } catch (error) {

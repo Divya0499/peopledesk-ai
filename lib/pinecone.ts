@@ -12,9 +12,7 @@ function getPinecone() {
   return client;
 }
 
-// PINECONE_NAMESPACE keeps a separate set of documents in the same index:
-// the RAG evaluation (scripts/eval-rag.mts) uses its own, so it never mixes
-// with or deletes the real documents. Unset means the default namespace.
+// eval-rag uses its own namespace so it doesn't touch the real docs
 export function getIndex() {
   const index = getPinecone().index({
     name: process.env.PINECONE_INDEX!,

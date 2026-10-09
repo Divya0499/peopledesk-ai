@@ -4,20 +4,16 @@ import { ai, CHAT_MODEL } from "@/lib/gemini";
 export type Candidate = {
   id: string;
   text: string;
-  // Pinecone's similarity score, passed through untouched
   score?: number;
   section?: string;
 };
 
 export type RerankedCandidate = {
   id: string;
-  // 0–10 relevance judged by Gemini; null if Gemini skipped this candidate.
-  // Not comparable to Pinecone's similarity score.
+  // 0-10 from gemini, null if it skipped this one
   score: number | null;
 };
 
-// Ask Gemini to score each of Pinecone's candidates by how well it
-// answers the question. Returns every candidate, highest score first.
 export async function rerankChunks(
   question: string,
   candidates: Candidate[],
@@ -64,7 +60,6 @@ the question, give them all 0.
     model: CHAT_MODEL,
     contents: prompt,
     config: {
-      // Makes Gemini return bare JSON in this shape (no code fences)
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -85,8 +80,7 @@ the question, give them all 0.
     score: number;
   }[];
 
-  // Only trust scores for real candidate IDs, clamped to 0–10;
-  // the first score wins if Gemini repeats an ID
+  // ignore ids that don't exist, clamp to 0-10
   const scores = new Map<string, number>();
 
   for (const { id, score } of judged) {
@@ -95,8 +89,7 @@ the question, give them all 0.
     }
   }
 
-  // Every candidate comes back, even ones Gemini skipped (score null, last).
-  // Ties keep Pinecone's order because sort is stable.
+  // skipped ones go last. sort is stable so ties keep pinecone's order
   return candidates
     .map((candidate) => ({
       id: candidate.id,
