@@ -12,29 +12,22 @@ import {
   RAG_CHAIN_SYSTEM_PROMPT,
 } from "./untrusted-content";
 
-// Give up on reranking after this long and use Pinecone's order, so a slow
-// reranker can't hold up the answer (same limit as /api/chat)
+// if reranking is slower than this, just use pinecone's order
 const RERANK_TIMEOUT_MS = 8000;
 
 type RagInput = {
   question: string;
-  // Earlier turns of the conversation, oldest first
   history: BaseMessage[];
 };
 
-// Searches every uploaded document
 const retriever = new PineconeRetriever();
 
-// The documents go in as a marked block of untrusted data, with rules saying
-// never to follow instructions inside them (see untrusted-content.ts)
 const prompt = ChatPromptTemplate.fromMessages([
   ["system", RAG_CHAIN_SYSTEM_PROMPT],
   ["placeholder", "{history}"],
   ["human", "{question}"],
 ]);
 
-// Inside assign() each step gets the whole input object, not just the
-// question string, hence the { question } destructuring
 const retrieveAndRerank = RunnableLambda.from(
   async ({ question }: RagInput): Promise<Document[]> => {
     const documents = await retriever.invoke(question);
@@ -64,7 +57,6 @@ const retrieveAndRerank = RunnableLambda.from(
 
       return relevantDocuments;
     } catch (error) {
-      // Answer with Pinecone's order rather than failing the request
       console.error("Reranking failed, using Pinecone order", error);
 
       return documents;
@@ -80,15 +72,11 @@ const formatDocuments = (documents: Document[]) =>
     })),
   );
 
-// Same text the prompt tells Gemini to give when the context lacks the answer
+// must match the text in the prompt
 const NOT_FOUND_ANSWER =
   "I couldn't find that information in the provided documents.";
 
-// { question, history }
-//   → + documents (retrieve + rerank)
-//   → + context (documents joined into text)
-//   → + text (prompt → Gemini → plain string)
-//   → { text, documents }, so the caller knows which chunks were used
+// question -> retrieve + rerank -> context -> gemini -> { text, documents }
 export const ragChain = RunnablePassthrough.assign({
   documents: retrieveAndRerank,
 })
@@ -103,14 +91,12 @@ export const ragChain = RunnablePassthrough.assign({
 
 export type RagSource = {
   id: string;
-  // The chunk itself, so the chat UI can show what the answer was based on
   text: string;
   source: string;
   section: string;
   chunkIndex: number;
-  // Pinecone's vector similarity
   score: number;
-  // Gemini's relevance score; missing if reranking fell back to Pinecone
+  // not set if reranking failed
   rerankScore?: number;
 };
 
@@ -120,11 +106,10 @@ export async function askRag(question: string, history: BaseMessage[] = []) {
     history,
   });
 
-  // Nothing was answered from these chunks, so don't list them as sources
-  // (same rule as /api/chat)
+  // no sources if it couldn't answer
   const sources: RagSource[] = text.trim().startsWith(NOT_FOUND_ANSWER)
     ? []
-    : // pick() doesn't keep the documents' type
+    : // pick() loses the type
       (documents as Document[]).map((doc) => ({
         id: doc.metadata.id,
         text: doc.pageContent,

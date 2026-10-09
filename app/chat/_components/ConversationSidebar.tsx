@@ -5,16 +5,13 @@ import type { ConversationSummary } from "./types";
 
 type ConversationSidebarProps = {
   conversations: ConversationSummary[];
-  // The open conversation, highlighted in the list
   activeId?: string;
   onNewChat: () => void;
   onSelect: (conversationId: string) => void;
-  // Deletes the conversation on the server; throws with a message on failure
   onDelete: (conversationId: string) => Promise<void>;
-  // Small screens show the sidebar as a drawer over the chat
+  // drawer on mobile
   open: boolean;
   onClose: () => void;
-  // Shown below the history, e.g. the document list
   footer?: ReactNode;
 };
 
@@ -28,7 +25,6 @@ function ConversationSidebar({
   onClose,
   footer,
 }: ConversationSidebarProps) {
-  // The chat the confirmation dialog is asking about; null when it's closed
   const [pendingDelete, setPendingDelete] =
     useState<ConversationSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -56,7 +52,6 @@ function ConversationSidebar({
       await onDelete(pendingDelete.id);
       setPendingDelete(null);
     } catch (err) {
-      // Kept open with the error, so the person can retry or cancel
       setError(
         err instanceof Error ? err.message : "Failed to delete conversation",
       );
@@ -67,7 +62,6 @@ function ConversationSidebar({
 
   return (
     <>
-      {/* Backdrop behind the drawer on small screens */}
       <div
         onClick={onClose}
         aria-hidden
@@ -126,8 +120,6 @@ function ConversationSidebar({
               const title = conversation.title ?? "New Conversation";
 
               return (
-                // Two buttons side by side, not one inside the other: open
-                // the chat, or delete it
                 <div
                   key={conversation.id}
                   aria-current={
@@ -150,7 +142,7 @@ function ConversationSidebar({
                     disabled={deleting}
                     aria-label={`Delete ${title}`}
                     title="Delete"
-                    // Always visible on touch screens, where there's no hover
+                    // no hover on mobile so always show it there
                     className="mr-1 shrink-0 rounded p-1 text-zinc-400 transition hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-red-950 dark:hover:text-red-400"
                   >
                     <TrashIcon className="size-3.5" />

@@ -8,9 +8,7 @@ import { createSession } from "@/lib/session";
 const MAX_ATTEMPTS = 5;
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 
-// Compared against when the email doesn't exist, so a missing account takes
-// as long to reject as a wrong password and response times don't reveal
-// which emails are registered
+// so unknown emails take the same time as wrong passwords
 const dummyHash = hashPassword("not-a-real-password");
 
 const INVALID = "Invalid email or password";
@@ -28,8 +26,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Per account and address: slows down guessing one account's password
-  // without letting one address lock everyone else out
   const limitKey = `login:${email}:${clientIp(req)}`;
   const limit = rateLimit(limitKey, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS);
 
@@ -55,8 +51,7 @@ export async function POST(req: Request) {
     employee?.passwordHash ?? (await dummyHash),
   );
 
-  // The same message for an unknown email, an account without a password
-  // and a wrong password, so the response can't be used to find accounts
+  // same error either way
   if (!employee?.passwordHash || !passwordOk) {
     return NextResponse.json({ error: INVALID }, { status: 401 });
   }

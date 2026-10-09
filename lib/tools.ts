@@ -4,11 +4,8 @@ import { withRetry } from "@/lib/retry";
 export async function getLeaveBalance(userId: string) {
   console.log("getLeaveBalance called for:", userId);
 
-  // Timed to compare with the agent's total: Date.now() rather than
-  // console.time, whose global labels clash when requests overlap
   const startedAt = Date.now();
 
-  // Reads, so safe to retry if the database briefly fails
   const [employee, pending] = await withRetry(() =>
     Promise.all([
       prisma.employee.findUnique({
@@ -30,8 +27,7 @@ export async function getLeaveBalance(userId: string) {
     };
   }
 
-  // leaveBalance already has pending requests taken off (see lib/leave.ts);
-  // pendingDays says how many of the taken days are still waiting
+  // leaveBalance already excludes pending days
   return {
     userId,
     leaveBalance: employee.leaveBalance,
@@ -58,7 +54,6 @@ export async function getEmployeeDetails(userId: string) {
     name: employee.name,
     department: employee.department,
     leaveBalance: employee.leaveBalance,
-    // Who approves their leave; HR when they have no manager
     leaveApprover: employee.manager?.name ?? "HR",
   };
 }

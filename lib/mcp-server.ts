@@ -1,24 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getLeaveBalance } from "./tools";
 
-// The MCP server with its tools and resources, and no transport attached: the
-// stdio entry (mcp-server-stdio.ts), the HTTP route (app/api/mcp) and the
-// in-process client (mcp-client.ts) each connect one.
-// A factory because one server can only be connected to one transport, and
-// the HTTP route needs a fresh one per request.
-// It reuses the existing getLeaveBalance unchanged.
-//
-// userId is the already-authenticated user: from the login session in the
-// HTTP route and the in-process client, or MCP_USER_ID for the stdio
-// process. getLeaveBalance is bound to it and takes no arguments, so no MCP
-// client can ask about another employee.
+// factory because a server can only connect to one transport
+// (used by stdio, the /api/mcp route and the in-process client)
 export function createMcpServer({ userId }: { userId: string }) {
   const server = new McpServer({
     name: "hr-mcp-server",
     version: "1.0.0",
   });
 
-  // MCP tool results are content blocks; JSON text keeps the fields intact
   async function leaveBalanceResult() {
     const result = await getLeaveBalance(userId);
     return {
@@ -36,10 +26,7 @@ export function createMcpServer({ userId }: { userId: string }) {
     async () => leaveBalanceResult(),
   );
 
-  // A resource is data the client reads by URI, not an action the model
-  // calls: the application decides when to read it and how to use it.
-  // Sample text for the MCP resource demo (mcp-client-test.ts) only. The chat
-  // doesn't read it: policy answers come from the uploaded documents.
+  // just for trying out MCP resources (mcp-client-test.ts), the chat doesn't use it
   server.registerResource(
     "leave-policy",
     "company://policies/leave",

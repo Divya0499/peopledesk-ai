@@ -7,26 +7,14 @@ import { embedDocument } from "@/lib/gemini";
 import { getIndex } from "@/lib/pinecone";
 import { prisma } from "@/lib/prisma";
 
-// Turning an uploaded PDF into searchable chunks: read its text, check it's
-// an HR document, split it, embed each chunk and store the vectors in
-// Pinecone. The upload route accepts the file and runs processUpload() after
-// responding, so the admin doesn't wait for embedding.
-
-// Less text than this is page numbers or stray marks, not real content: the
-// PDF is almost certainly scanned images
+// less than this = probably a scanned pdf
 const MIN_TEXT_CHARS = 50;
 
-// Chunks embedded at once: faster than one at a time, without a burst big
-// enough to hit the embedding API's rate limit
 const EMBED_CONCURRENCY = 4;
 
-// A document still "processing" after this long was interrupted (the server
-// restarted mid-way), so it's reported as failed rather than left spinning
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
-// A processing problem with a message written for the admin. "rejected"
-// means the file itself is the problem (they can fix it); "failed" means
-// something on our side went wrong (uploading again may work).
+// "rejected" = problem with the file, "failed" = our side, can retry
 export class DocumentProcessingError extends Error {
   constructor(
     message: string,
@@ -37,14 +25,13 @@ export class DocumentProcessingError extends Error {
 }
 
 export async function extractPdfText(bytes: Uint8Array) {
-  // A copy: the parser hands its buffer to a worker, which leaves the
-  // original unusable for anyone else
+  // copy because the parser transfers the buffer to a worker
   const parser = new PDFParse({ data: bytes.slice() });
 
   try {
     const pdfData = await parser.getText();
 
-    // Remove page markers like "-- 1 of 3 --" that pdf-parse adds
+    // remove the "-- 1 of 3 --" markers pdf-parse adds
     return pdfData.text.replace(/-- \d+ of \d+ --/g, " ");
   } catch (error) {
     console.error(error);
@@ -64,9 +51,6 @@ export async function deleteDocumentVectors(documentId: string) {
   });
 }
 
-// Splits, embeds and stores the text; returns the number of chunks. If any
-// step fails, the chunks already stored are removed again, so a document is
-// never half-searchable.
 export async function indexDocument(
   documentId: string,
   fileName: string,
@@ -93,7 +77,7 @@ export async function indexDocument(
             source: fileName,
             documentId,
             chunkIndex,
-            // Pinecone metadata can't hold undefined, so only set it when known
+            // pinecone doesn't accept undefined
             ...(chunk.section && { section: chunk.section }),
           },
         });
@@ -102,6 +86,7 @@ export async function indexDocument(
 
     await getIndex().upsert({ records });
   } catch (error) {
+    // clean up so we don't end up with half a document
     await deleteDocumentVectors(documentId).catch(() => {});
     throw error;
   }
@@ -109,12 +94,9 @@ export async function indexDocument(
   return chunks.length;
 }
 
-// Uploads waiting to be processed, one after another: several files
-// uploaded together would otherwise all embed at once and hit the embedding
-// API's rate limit. Per server process; each serverless instance has its own.
+// process uploads one by one, otherwise we hit the embedding rate limit
 let queue: Promise<void> = Promise.resolve();
 
-// Processes the upload once the ones before it are done
 export function enqueueUpload(
   documentId: string,
   fileName: string,
@@ -122,7 +104,6 @@ export function enqueueUpload(
 ) {
   const run = queue.then(() => processUpload(documentId, fileName, bytes));
 
-  // If one ever throws (say the database is down), the next still runs
   queue = run.catch((error) => {
     console.error("Upload processing crashed:", error);
   });
@@ -130,8 +111,6 @@ export function enqueueUpload(
   return run;
 }
 
-// Everything after the upload response. Never throws: the outcome is saved
-// on the document for the admin to see.
 export async function processUpload(
   documentId: string,
   fileName: string,
@@ -151,7 +130,6 @@ export async function processUpload(
     try {
       check = await checkDocument(fileName, text);
     } catch (error) {
-      // Never let an unchecked file through
       console.error("Document check failed:", error);
       throw new DocumentProcessingError(
         "Couldn't check this document right now. Please upload it again in a minute.",
@@ -167,8 +145,7 @@ export async function processUpload(
 
     const chunkCount = await indexDocument(documentId, fileName, text);
 
-    // Only if it's still processing: an admin may have deleted it meanwhile,
-    // and then its new vectors must go too
+    // it could have been deleted while we were processing
     const marked = await prisma.document.updateMany({
       where: { id: documentId, status: "processing" },
       data: { status: "ready", chunkCount, error: null },
@@ -183,8 +160,6 @@ export async function processUpload(
   } catch (error) {
     console.error(`Processing ${fileName} failed:`, error);
 
-    // A system error's details stay in the log; the admin gets a message
-    // only when it's one written for them
     const known = error instanceof DocumentProcessingError ? error : null;
 
     await prisma.document.updateMany({
@@ -199,10 +174,7 @@ export async function processUpload(
   }
 }
 
-// Once a re-uploaded file is ready, the copies of it (same name) uploaded
-// before it are removed. Only then, so a failed re-upload never leaves the
-// file missing; and only older ones, so a newer upload still processing
-// isn't removed from under it.
+// re-upload: remove the old copies only after the new one is ready
 async function removeOlderVersions(documentId: string, fileName: string) {
   const current = await prisma.document.findUniqueOrThrow({
     where: { id: documentId },
@@ -219,14 +191,12 @@ async function removeOlderVersions(documentId: string, fileName: string) {
 
   for (const document of older) {
     await deleteDocumentVectors(document.id);
-    // deleteMany: an admin may have deleted it already
     await prisma.document.deleteMany({ where: { id: document.id } });
   }
 }
 
-// The documents list. Anyone may see what's searchable; only admins see
-// uploads that are still processing or didn't make it.
 export async function listDocuments(includeUnfinished: boolean) {
+  // server probably restarted while these were processing
   await prisma.document.updateMany({
     where: {
       status: "processing",

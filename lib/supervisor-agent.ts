@@ -19,25 +19,16 @@ import {
 } from "./supervisor-tools";
 import { createAskMcpHrAgentTool } from "./mcp-supervisor-tool";
 
-// Where a supervisor run paused for approval is saved, keyed by thread_id,
-// so a later request can resume it with Command({ resume }). It has to be
-// the supervisor's: hrGraph runs nested inside askHrAgent and saves its
-// state under the supervisor's checkpointer, not its own.
-// Saved in PostgreSQL, so a paused approval survives a server restart. In
-// its own "langgraph" schema, apart from Prisma's tables in "public": Prisma
-// only manages "public", so it never sees these tables as drift.
+// separate schema so prisma doesn't see these tables as drift
 const CHECKPOINT_SCHEMA = "langgraph";
 
-// One saver (and its connection pool) for the whole server, since a new
-// supervisor is built per request. Kept on globalThis so a dev hot reload
-// doesn't open another pool (the same trick as lib/prisma.ts).
+// same globalThis trick as lib/prisma.ts so hot reload doesn't open more pools
 const globalForCheckpointer = globalThis as unknown as {
   supervisorPostgresSaver?: Promise<PostgresSaver>;
 };
 
 async function createCheckpointer() {
-  // ?schema= in DATABASE_URL is a Prisma setting that pg doesn't know;
-  // the saver gets its schema from its own option instead
+  // pg doesn't understand prisma's ?schema= param
   const url = new URL(process.env.DATABASE_URL!);
   url.searchParams.delete("schema");
 
@@ -45,18 +36,15 @@ async function createCheckpointer() {
     schema: CHECKPOINT_SCHEMA,
   });
 
-  // Creates the schema and its tables on first use; a no-op after that
   await saver.setup();
 
   return saver;
 }
 
-// The shared checkpointer, set up once. Awaited because setup() has to have
-// run before the first run is saved.
 export function getSupervisorCheckpointer() {
   globalForCheckpointer.supervisorPostgresSaver ??= createCheckpointer().catch(
     (error) => {
-      // Let the next request try again instead of failing forever
+      // reset so the next request can retry
       globalForCheckpointer.supervisorPostgresSaver = undefined;
       throw error;
     },
@@ -65,16 +53,12 @@ export function getSupervisorCheckpointer() {
   return globalForCheckpointer.supervisorPostgresSaver;
 }
 
-// Every call to a supervisor built with a checkpointer needs this: the
-// thread_id picks which saved run to continue
 export function supervisorConfig(threadId: string): RunnableConfig {
   return { configurable: { thread_id: threadId } };
 }
 
-// Deletes a finished run's saved state. hrGraph runs nested inside
-// askHrAgent under its own thread_id (see hrRunId), so its checkpoints
-// aren't removed with the supervisor's thread and are deleted one by one,
-// using the askHrAgent call ids from the supervisor's saved messages.
+// hrGraph saves under its own thread ids (see hrRunId), so those have to be
+// deleted separately
 export async function deleteSupervisorRun(
   checkpointer: BaseCheckpointSaver,
   threadId: string,
@@ -96,9 +80,6 @@ export async function deleteSupervisorRun(
   );
 }
 
-// The approval a paused run is waiting for, read from its saved state, with
-// its threadId; undefined if the run isn't paused (finished, or its state is
-// gone). Only reads: no model call, nothing runs.
 export async function getPendingApproval(
   userId: string,
   threadId: string,
@@ -121,17 +102,9 @@ export async function getPendingApproval(
 }
 
 type SupervisorOptions = {
-  // Pass the saver from getSupervisorCheckpointer() to make runs resumable
-  // after an approval pause. Without one there's no thread_id to supply, and
-  // a pause can't be resumed.
   checkpointer?: BaseCheckpointSaver;
 };
 
-// The supervisor has no HR or RAG tools of its own: it only decides which
-// specialist a request belongs to and delegates it.
-// Created per request because the HR agents need that request's userId.
-// askMcpHrAgent overlaps with askHrAgent; the prompt routes leave-balance
-// questions to it so MCP-backed delegation can be tested deterministically.
 export function createSupervisorAgent(
   userId: string,
   { checkpointer }: SupervisorOptions = {},
@@ -148,8 +121,6 @@ export function createSupervisorAgent(
       createSaveMemoryTool(userId),
     ],
     middleware: [
-      // Built before every model call rather than once, so the prompt has
-      // the memories as they are now (e.g. one saved earlier in this run)
       dynamicSystemPromptMiddleware(async () =>
         supervisorPrompt(await getMemoryContext(userId)),
       ),
@@ -157,9 +128,7 @@ export function createSupervisorAgent(
   });
 }
 
-// Loaded into the prompt rather than left to a tool call: Gemini doesn't
-// reliably think to look up a preference like response_style by itself
-// (the same reason as agent-node.ts)
+// put memories in the prompt, gemini doesn't reliably call the tool to look them up
 async function getMemoryContext(userId: string) {
   const memories = await getMemories(userId);
 

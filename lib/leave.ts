@@ -2,15 +2,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import type { LeaveStatus, UserRole } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-// The leave workflow. Requesting leave reserves the days straight away (they
-// come off leaveBalance) and leaves the request pending; the employee's
-// manager then approves it, which keeps the days off, or rejects it, which
-// gives them back. The employee can cancel a pending request, which also
-// gives them back. Reserving up front means pending requests can never add
-// up to more leave than the employee has.
-//
-// Every function enforces its own rules (who may act, which status a request
-// must be in) rather than trusting the caller or the model.
+// days are taken off the balance when the leave is requested, and given back
+// if it's rejected or cancelled. that way pending requests can't go over the balance
 
 export const MAX_REASON_LENGTH = 500;
 export const MAX_NOTE_LENGTH = 500;
@@ -22,8 +15,6 @@ type RequestedLeave = {
   status: LeaveStatus;
 };
 
-// Rebuilds the result for a requestId that was already used, so a retried
-// request gets the same answer without reserving the days again
 async function previousRequestResult(application: RequestedLeave) {
   const employee = await prisma.employee.findUnique({
     where: { id: application.userId },
@@ -41,9 +32,7 @@ async function previousRequestResult(application: RequestedLeave) {
   };
 }
 
-// Creates a pending request and reserves its days. requestId makes it
-// idempotent: repeating one returns the first result instead of reserving
-// the days again.
+// requestId = idempotency key, same id twice returns the first result
 export async function requestLeave(
   userId: string,
   days: number,
@@ -75,11 +64,8 @@ export async function requestLeave(
   }
 
   try {
-    // The balance check, the reservation and the request commit together,
-    // so days are never reserved without a request to show for them
     return await prisma.$transaction(async (tx) => {
-      // Checking the balance inside the update stops two concurrent
-      // requests from both passing the check and overdrawing it
+      // check the balance in the update itself so parallel requests can't overdraw it
       const reserved = await tx.employee.updateMany({
         where: { id: userId, leaveBalance: { gte: days } },
         data: { leaveBalance: { decrement: days } },
@@ -97,7 +83,6 @@ export async function requestLeave(
         return { success: false as const, error: "Employee not found" };
       }
 
-      // Nothing was written, so a retry simply checks again
       if (reserved.count === 0) {
         return {
           success: false as const,
@@ -124,8 +109,7 @@ export async function requestLeave(
       };
     });
   } catch (error) {
-    // Another request with the same requestId committed first; the unique
-    // constraint rolled this one back, so report that request's result
+    // same requestId was saved by another request at the same time
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -152,7 +136,6 @@ const requestSelect = {
   decidedBy: { select: { name: true } },
 } satisfies Prisma.LeaveApplicationSelect;
 
-// The employee's own requests, newest first
 export async function listMyLeaveRequests(userId: string, take = 50) {
   return prisma.leaveApplication.findMany({
     where: { userId },
@@ -164,8 +147,7 @@ export async function listMyLeaveRequests(userId: string, take = 50) {
 
 type Approver = { userId: string; role: UserRole };
 
-// Whose requests this person decides: their direct reports, plus, for an
-// admin, everyone who has no manager. Never their own.
+// direct reports, and for admins also people without a manager. never yourself
 function approvableBy(approver: Approver): Prisma.EmployeeWhereInput {
   const reports: Prisma.EmployeeWhereInput = { managerId: approver.userId };
 
@@ -177,8 +159,6 @@ function approvableBy(approver: Approver): Prisma.EmployeeWhereInput {
   return { AND: [scope, { id: { not: approver.userId } }] };
 }
 
-// Requests waiting for this person's decision, oldest first, so the longest
-// waiting is handled first
 export async function listPendingForApprover(approver: Approver) {
   return prisma.leaveApplication.findMany({
     where: { status: "pending", employee: approvableBy(approver) },
@@ -192,8 +172,6 @@ export async function listPendingForApprover(approver: Approver) {
   });
 }
 
-// Whether this person approves anyone's leave, to decide if they see the
-// team approvals page
 export async function isApprover(approver: Approver) {
   const count = await prisma.employee.count({ where: approvableBy(approver) });
 
@@ -204,10 +182,6 @@ export type DecisionResult =
   | { ok: true; status: LeaveStatus }
   | { ok: false; status: 403 | 404 | 409; error: string };
 
-// Approves or rejects a pending request. Only the employee's manager (or an
-// admin, for employees without one) may decide, and never on their own
-// request. The status check is part of the update, so two people deciding
-// at once can't both succeed, and a rejection's refund can only happen once.
 export async function decideLeave(
   approver: Approver,
   applicationId: string,
@@ -219,8 +193,7 @@ export async function decideLeave(
     select: { id: true, userId: true, days: true, status: true },
   });
 
-  // Same answer for a request that doesn't exist and one this person can't
-  // decide, so ids of other teams' requests can't be probed
+  // 404 for both "doesn't exist" and "not yours"
   if (!application) {
     return { ok: false, status: 404, error: "Leave request not found" };
   }
@@ -237,6 +210,7 @@ export async function decideLeave(
   const decisionNote = note?.trim().slice(0, MAX_NOTE_LENGTH) || null;
 
   const decided = await prisma.$transaction(async (tx) => {
+    // status: "pending" in the where so two decisions at once can't both go through
     const updated = await tx.leaveApplication.updateMany({
       where: { id: application.id, status: "pending" },
       data: {
@@ -251,7 +225,6 @@ export async function decideLeave(
       return false;
     }
 
-    // A rejection gives the reserved days back
     if (!approve) {
       await tx.employee.update({
         where: { id: application.userId },
@@ -273,7 +246,6 @@ export async function decideLeave(
   return { ok: true, status };
 }
 
-// The employee withdraws their own pending request; its days come back
 export async function cancelLeave(
   userId: string,
   applicationId: string,

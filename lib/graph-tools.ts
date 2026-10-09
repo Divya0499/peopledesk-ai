@@ -14,11 +14,7 @@ import {
   createSaveMemoryTool,
 } from "./memory-tools";
 
-// One list for both graph nodes: the agent node binds these (so Gemini can
-// ask for them) and the tool node runs them, so the two can't drift apart.
-// Built per run from the graph state: the HR and memory tools get the
-// employee's userId and applyLeave also the requestId, so Gemini can't
-// choose either.
+// used by both the agent node and the tool node so they stay in sync
 export function createGraphTools(
   userId: string,
   requestId: string,
@@ -35,8 +31,7 @@ export function createGraphTools(
   ];
 }
 
-// Lives here rather than in langchain-model.ts, which would create a circular
-// import (langchain-model → rag tool → langchain-rag → langchain-model).
+// here and not in langchain-model.ts because of a circular import
 export function createModelWithTools(tools: StructuredTool[]) {
   return model.bindTools(tools);
 }

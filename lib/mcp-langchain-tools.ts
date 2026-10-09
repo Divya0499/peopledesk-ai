@@ -3,12 +3,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createMcpClient } from "./mcp-client";
 
-// The MCP server's getLeaveBalance as a LangChain tool. The agent never
-// imports getLeaveBalance: each call goes through the MCP client to the
-// MCP server.
-// Takes no userId: the client's server is already bound to the
-// session's user (see getMcpTools), so neither the model nor this call can
-// ask the MCP server about another employee.
+// calls getLeaveBalance through MCP. no userId, the server is already bound to the user
 export function createMcpLeaveBalanceTool(client: Client) {
   return tool(
     async () => {
@@ -17,8 +12,7 @@ export function createMcpLeaveBalanceTool(client: Client) {
         arguments: {},
       });
 
-      // MCP returns content blocks; the agent only needs their text (the
-      // JSON getLeaveBalance produced), not the MCP wrapper around it
+      // just take the text out of the MCP content blocks
       const content = result.content as { type: string; text?: string }[];
       return content
         .filter((block) => block.type === "text")
@@ -33,11 +27,8 @@ export function createMcpLeaveBalanceTool(client: Client) {
   );
 }
 
-// Connects to an MCP server bound to this userId (from the login session),
-// and bridges its tools into LangChain tools an agent can use.
-// The caller must client.close() when done.
-// A hand-written first adapter; a generic one would build these from
-// client.listTools() instead.
+// remember to client.close() after.
+// TODO: build these from client.listTools() instead of by hand
 export async function getMcpTools(userId: string) {
   const client = await createMcpClient(userId);
 

@@ -12,10 +12,7 @@ const SALT_BYTES = 16;
 
 export const MIN_PASSWORD_LENGTH = 8;
 
-// Stored as "scrypt$<salt>$<hash>" (both base64), so the salt travels with
-// the hash and the scheme can change later without breaking old rows.
-// scrypt is deliberately slow and memory-hard, which makes guessing
-// passwords from a leaked database expensive.
+// format: scrypt$salt$hash (base64)
 export async function hashPassword(password: string) {
   const salt = randomBytes(SALT_BYTES);
   const hash = await scryptAsync(password, salt, KEY_LENGTH);
@@ -23,9 +20,6 @@ export async function hashPassword(password: string) {
   return `scrypt$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
 
-// False for a wrong password and for a stored value it can't read.
-// timingSafeEqual takes the same time however many bytes match, so the
-// response time doesn't leak how close a guess was.
 export async function verifyPassword(password: string, stored: string) {
   const [scheme, saltText, hashText] = stored.split("$");
 

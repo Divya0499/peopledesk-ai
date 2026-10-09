@@ -10,14 +10,10 @@ export type UsageSummary = {
   totalTokens: number;
   toolCalls: number;
   errors: number;
-  // Tokens per model, since cost depends on which model was used
   byModel: Record<string, { inputTokens: number; outputTokens: number }>;
 };
 
-// Adds up token usage over every model call in one request. Passed as a
-// callback to the outermost invoke(), it also sees the calls made by agents
-// nested inside tools (askHrAgent, askRagAgent): LangChain carries callbacks
-// into nested runs automatically. One tracker per request; don't share it.
+// counts tokens for one request, including the nested agents. one per request
 export class UsageTracker extends BaseCallbackHandler {
   name = "usage-tracker";
 
@@ -31,7 +27,6 @@ export class UsageTracker extends BaseCallbackHandler {
     byModel: {},
   };
 
-  // The model name is only known when a call starts, so remember it by run
   private modelByRun = new Map<string, string>();
 
   async handleChatModelStart(

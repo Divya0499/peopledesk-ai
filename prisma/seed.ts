@@ -4,10 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { hashPassword } from "../lib/password";
 
-// Demo users for a fresh database: an HR admin, a manager and two of their
-// reports. Run with `npm run db:seed`. Upserts, so running it again resets
-// their details, password and leave balance instead of failing.
-// Every account gets the same password, shown on the login page.
+// demo users. upsert so it can be run again to reset them
 const DEMO_PASSWORD = "PeopleDesk@123";
 
 // Managers before their reports, so each managerId already exists

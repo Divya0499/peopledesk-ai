@@ -1,15 +1,10 @@
-// A fixed-window counter kept in this server's memory: up to `limit` hits per
-// key every `windowMs`. Enough to slow down password guessing and runaway
-// clients on one server. Each instance counts on its own, so with several
-// instances (serverless, a cluster) the real limit is higher; a shared store
-// such as Redis is the fix for that.
+// simple fixed window, in memory. per instance only - would need redis to share it
 
 type Window = { count: number; resetAt: number };
 
 const windows = new Map<string, Window>();
 
-// Old windows are dropped once this many keys pile up, so a stream of new
-// keys (e.g. random emails) can't grow the map forever
+// so the map can't grow forever
 const MAX_KEYS = 10_000;
 
 export type RateLimitResult =
@@ -47,15 +42,11 @@ export function rateLimit(
   return { allowed: true };
 }
 
-// Forgets a key, e.g. after a successful login, so earlier failed attempts
-// don't count against the next session
 export function resetRateLimit(key: string) {
   windows.delete(key);
 }
 
-// The client's address as the proxy in front of the app reports it. Only a
-// rate-limit key: the header can be forged when there's no proxy, so it must
-// never be used for anything security-critical on its own.
+// can be faked without a proxy, only use it for rate limiting
 export function clientIp(request: Request) {
   return (
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||

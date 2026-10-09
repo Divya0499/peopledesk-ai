@@ -35,27 +35,17 @@ async function fetchConversations(): Promise<ConversationSummary[]> {
 }
 
 type ChatLayoutProps = {
-  // Uploading and deleting documents are admin-only, so others don't get
-  // the buttons
   isAdmin: boolean;
 };
 
-// Holds the document list so the upload button, the sidebar list and the
-// chat's empty state stay in sync
 function ChatLayout({ isAdmin }: ChatLayoutProps) {
   const [documents, setDocuments] = useState<DocumentOption[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  // The chat currently shown, or null for a new, unsaved chat
   const [activeConversation, setActiveConversation] =
     useState<ConversationSummary | null>(null);
-  // Changing the key remounts ChatWindow so it starts from the
-  // selected conversation (or empty for a new chat)
+  // bump to remount ChatWindow
   const [chatKey, setChatKey] = useState(0);
-  // Sidebar drawer on small screens; always shown from md up
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Turn a saved conversation's messages into the chat's message format,
-  // with the Approve / Reject card back on a leave application that's still
-  // waiting (the server read it from the paused run)
   const toMessages = (conversation: ConversationSummary): Message[] =>
     withPendingApproval(
       conversation.messages.map((message) => ({
@@ -70,7 +60,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
     setActiveConversation(conversation);
     setSidebarOpen(false);
     setChatKey((key) => key + 1);
-    // Keep the open chat in the URL so a reload brings it back
     window.history.replaceState(
       null,
       "",
@@ -80,7 +69,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
 
   const newChat = () => showChat(null);
 
-  // Re-fetch before opening so messages sent since the last load are included
   const selectConversation = async (conversationId: string) => {
     try {
       const latest = await fetchConversations();
@@ -96,8 +84,7 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
       .then(setConversations)
       .catch((error) => console.error("Could not load conversations", error));
 
-  // A chat was created from the first message: list it in the sidebar and
-  // put it in the URL, without remounting the chat that's still streaming
+  // don't remount here, the chat is still streaming
   const handleConversationCreated = (conversationId: string) => {
     window.history.replaceState(null, "", `?c=${conversationId}`);
     loadConversations();
@@ -110,7 +97,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
       .then((loaded) => {
         setConversations(loaded);
 
-        // Reopen the chat from the URL after a reload
         const open = loaded.find((c) => c.id === openId);
 
         if (open) {
@@ -124,12 +110,10 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
   useEffect(() => {
     fetchDocuments()
       .then(setDocuments)
-      // The chat still works without the list
       .catch((error) => console.error("Could not load documents", error));
   }, []);
 
-  // Uploads are processed after the upload request returns, so while any is
-  // still processing, check back until it's ready, rejected or failed
+  // poll while something is still processing
   const processing = documents.some((doc) => doc.status === "processing");
 
   useEffect(() => {
@@ -146,8 +130,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
     return () => clearInterval(timer);
   }, [processing]);
 
-  // Deletes a chat; errors are shown by ConversationSidebar. If it was the
-  // open one, start a new chat instead of showing a deleted conversation.
   const handleDeleteConversation = async (deletedId: string) => {
     const response = await fetch(`/api/conversations/${deletedId}`, {
       method: "DELETE",
@@ -165,7 +147,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
     }
   };
 
-  // Removes the PDF from PostgreSQL and Pinecone; errors are shown by DocumentList
   const handleDeleteDocument = async (deletedId: string) => {
     const response = await fetch(`/api/documents/${deletedId}`, {
       method: "DELETE",
@@ -179,7 +160,6 @@ function ChatLayout({ isAdmin }: ChatLayoutProps) {
     setDocuments((prev) => prev.filter((doc) => doc.id !== deletedId));
   };
 
-  // Show the new PDF in the sidebar list
   const handleUploaded = async () => {
     try {
       setDocuments(await fetchDocuments());

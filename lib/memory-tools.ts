@@ -3,11 +3,7 @@ import { z } from "zod";
 
 import { getMemories, getMemory, saveMemory } from "./memory";
 
-// LLM-callable wrappers around lib/memory.ts, so the agent can decide when to
-// remember something about a user and when to look it up again.
-// Built per request with the current user's userId from the signed session:
-// the schemas have no userId, so the model can't read or overwrite another
-// user's memories.
+// userId is fixed per request, not a tool argument
 
 export function createSaveMemoryTool(userId: string) {
   return tool(
@@ -64,8 +60,7 @@ export function createGetMemoryTool(userId: string) {
   );
 }
 
-// Returns every memory at once, so the agent doesn't have to guess the exact
-// key that getMemory needs
+// so the agent doesn't have to guess the key
 export function createGetMemoriesTool(userId: string) {
   return tool(
     async () => {

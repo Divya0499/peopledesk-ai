@@ -1,7 +1,4 @@
-// Prisma errors that mean the database was briefly unavailable, not that
-// the query was wrong: can't reach the server (P1001), connection or
-// operation timed out (P1002, P1008), connection closed (P1017), and no free
-// connection in the pool (P2024)
+// connection problems / timeouts / pool full
 const RETRYABLE_PRISMA_CODES = new Set([
   "P1001",
   "P1002",
@@ -10,7 +7,6 @@ const RETRYABLE_PRISMA_CODES = new Set([
   "P2024",
 ]);
 
-// Node network errors that a second attempt can get past
 const RETRYABLE_NETWORK_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
@@ -18,14 +14,8 @@ const RETRYABLE_NETWORK_CODES = new Set([
   "EAI_AGAIN",
 ]);
 
-// HTTP statuses from APIs: rate limited, or the service is temporarily down
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
-// Whether an error is temporary (worth retrying) or permanent (a retry would
-// fail the same way). Checks structured fields first, since message text
-// varies between libraries; the message check is only a fallback.
-// Business failures (employee not found, insufficient balance) never get
-// here: the tools return them as results rather than throwing.
 export function isRetryableError(error: unknown) {
   if (typeof error === "object" && error !== null) {
     const { code, status } = error as { code?: unknown; status?: unknown };
@@ -51,12 +41,7 @@ export function isRetryableError(error: unknown) {
   );
 }
 
-// Runs fn, and if it throws a temporary error, waits and tries again, up to
-// maxRetries attempts in total. The wait doubles each time (500ms, 1000ms, …)
-// so a briefly overloaded database or API gets a moment to recover. A
-// permanent error is thrown straight away: retrying it would only add delay.
-// Only use it for operations that are safe to repeat: reads, or writes
-// protected by an idempotency key.
+// exponential backoff. only use for things that are safe to repeat!
 export async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
@@ -82,7 +67,6 @@ export async function withRetry<T>(
     }
   }
 
-  // Unreachable (the last attempt returns or throws), but TypeScript can't
-  // tell the loop always runs
+  // never gets here but TS doesn't know that
   throw lastError;
 }

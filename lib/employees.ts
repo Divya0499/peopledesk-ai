@@ -4,10 +4,6 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 
-// Admin-only employee management. The routes check the caller is an admin;
-// these functions check the data makes sense (unique email, a manager that
-// exists and doesn't create a loop).
-
 const MAX_LEAVE_DAYS = 365;
 
 const fields = {
@@ -19,7 +15,7 @@ const fields = {
     .pipe(z.email("Enter a valid email address")),
   department: z.string().trim().min(1, "Department is required").max(100),
   role: z.enum(["employee", "admin"]),
-  // "" from a form's "No manager" option means none
+  // "" = no manager
   managerId: z
     .string()
     .nullish()
@@ -43,7 +39,6 @@ const fields = {
 
 export const createEmployeeSchema = z.object(fields);
 
-// Every field optional; a password here resets it
 export const updateEmployeeSchema = z.object(fields).partial();
 
 export type EmployeeResult =
@@ -69,9 +64,7 @@ export async function listEmployees() {
   });
 }
 
-// Whether making managerId the manager of employeeId would create a loop
-// (A manages B manages A). Walks up from the new manager: if the chain
-// reaches the employee, they'd end up managing themselves.
+// A manages B manages A - walk up the chain from the new manager
 async function createsManagerLoop(employeeId: string, managerId: string) {
   let current: string | null = managerId;
   const seen = new Set<string>();
@@ -150,8 +143,7 @@ export async function updateEmployee(
     return { ok: false, status: 404, error: "Employee not found" };
   }
 
-  // An admin removing their own admin role could leave no one able to
-  // manage employees or documents
+  // don't let an admin remove their own admin role
   if (employeeId === adminId && input.role && input.role !== "admin") {
     return {
       ok: false,
@@ -207,7 +199,6 @@ export async function updateEmployee(
   }
 }
 
-// The first validation message, for a form to show next to its submit button
 export function firstIssue(error: z.ZodError) {
   return error.issues[0]?.message ?? "Invalid input";
 }

@@ -8,9 +8,6 @@ const bodySchema = z.object({
   note: z.string().max(MAX_NOTE_LENGTH).optional(),
 });
 
-// A manager approves or rejects one of their team's pending requests.
-// decideLeave() checks the caller may decide it, so the request id in the
-// URL grants nothing on its own.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },

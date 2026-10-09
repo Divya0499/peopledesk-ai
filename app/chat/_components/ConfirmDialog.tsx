@@ -6,20 +6,14 @@ type ConfirmDialogProps = {
   title: string;
   description: string;
   confirmLabel: string;
-  // The confirm button's label while busy
   busyLabel?: string;
-  // True while the action runs: the buttons are disabled and the dialog
-  // can't be dismissed, so it can't be confirmed twice
   busy?: boolean;
-  // Shown inside the dialog, so the person can retry or cancel
   error?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
-// A confirmation for destructive actions such as deleting a chat. Built on
-// the native <dialog>: showModal() traps focus, puts it above the page and
-// closes on Escape.
+// native <dialog> so focus trap + escape work for free
 function ConfirmDialog({
   open,
   title,
@@ -32,7 +26,6 @@ function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  // Unique per dialog: the page can have more than one (chats, documents)
   const titleId = useId();
   const descriptionId = useId();
 
@@ -55,7 +48,7 @@ function ConfirmDialog({
       ref={dialogRef}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
-      // Escape: let React decide, so it stays open while busy
+      // don't close on escape while busy
       onCancel={(event) => {
         event.preventDefault();
 
@@ -63,7 +56,7 @@ function ConfirmDialog({
           onCancel();
         }
       }}
-      // A click on the dialog element itself is a click on the backdrop
+      // clicked the backdrop
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) {
           onCancel();
@@ -96,7 +89,7 @@ function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            // Focused when the dialog opens, so Enter doesn't delete by accident
+            // so enter doesn't delete by accident
             autoFocus
             className="rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >

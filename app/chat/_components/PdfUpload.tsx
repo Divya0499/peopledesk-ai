@@ -3,16 +3,11 @@
 import { useRef, useState } from "react";
 import { UploadIcon } from "./icons";
 
-// One picked file's progress sending it. Each file is its own /api/upload
-// request, so one bad file fails on its own and the rest still upload. Once
-// sent, the server checks and indexes it, and the documents list shows how
-// that ends.
 type FileStatus =
   | { fileName: string; type: "waiting" | "uploading" | "sent" }
   | { fileName: string; type: "error"; message: string };
 
 type PdfUploadProps = {
-  // Called after each file is accepted, so the list shows it processing
   onUploaded: () => void;
 };
 
@@ -44,8 +39,7 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
   const setFileStatus = (index: number, status: FileStatus) =>
     setFiles((prev) => prev.map((file, i) => (i === index ? status : file)));
 
-  // One at a time, so the per-file lines fill in order and one slow file
-  // doesn't hold back the error for another
+  // one request per file so one bad file doesn't fail the rest
   const uploadFiles = async (picked: File[]) => {
     setFiles(picked.map((file) => ({ fileName: file.name, type: "waiting" })));
 
@@ -69,7 +63,6 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Hidden file input, opened by the button */}
       <input
         ref={inputRef}
         type="file"
@@ -79,7 +72,7 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         onChange={(event) => {
           const picked = Array.from(event.target.files ?? []);
 
-          // Clear the input so the same files can be picked again
+          // reset so you can pick the same file again
           event.target.value = "";
 
           if (picked.length > 0) {
@@ -102,12 +95,10 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         {uploading ? "Uploading..." : "Upload PDFs"}
       </button>
 
-      {/* The same rules /api/upload enforces, so admins know before picking */}
       <p className="text-[11px] text-zinc-400">
         HR and company policy PDFs only, up to 10 MB, with selectable text.
       </p>
 
-      {/* One status line per picked file */}
       {files.length > 0 && (
         <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto text-xs">
           {files.map((file, i) => (

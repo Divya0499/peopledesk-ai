@@ -12,15 +12,12 @@ datasource db {
   provider = "postgresql"
 }
 
-// An uploaded PDF. `id` matches the documentId stored on its Pinecone chunks.
-// The upload is accepted straight away as "processing"; reading, checking
-// and indexing it happen after the response (lib/ingest.ts).
+// id = documentId in pinecone metadata
 model Document {
   id           String         @id @default(uuid())
   fileName     String
   chunkCount   Int            @default(0)
   status       DocumentStatus @default(processing)
-  // Why it was rejected or failed, for the admin who uploaded it
   error        String?
   uploadedById String?
   uploadedBy   Employee?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
@@ -30,9 +27,6 @@ model Document {
   @@index([fileName])
 }
 
-// processing: being read, checked and indexed. ready: searchable.
-// rejected: not an HR document, or no readable text (the uploader can fix it).
-// failed: something went wrong on our side; uploading again may work.
 enum DocumentStatus {
   processing
   ready
@@ -40,8 +34,6 @@ enum DocumentStatus {
   failed
 }
 
-// Owned by one employee: /api/chat and /api/conversations must only let the
-// owner read or add to it, so a conversationId alone grants no access.
 model Conversation {
   id           String        @id @default(uuid())
   userId       String
@@ -65,30 +57,24 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           Role
   text           String
-  // The retrieved chunks an AI answer was based on; null for user messages
   sources        Json?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
 }
 
-// A person who can log in. Admins manage employees and company documents;
-// anyone with reports is a manager and approves their leave.
 model Employee {
   id                String             @id @default(uuid())
   name              String
-  // The login name, stored lowercase so lookups don't depend on case
+  // stored lowercase
   email             String             @unique
-  // scrypt hash from lib/password.ts; null means the account can't log in
+  // null = can't log in
   passwordHash      String?
-  // Days the employee can still request: pending requests are already
-  // taken off, and given back if they're rejected or cancelled
+  // pending requests are already subtracted
   leaveBalance      Int
   department        String
-  // Read on every request by getCurrentUser(), so a role change applies
-  // immediately instead of waiting for the session cookie to expire.
   role              UserRole           @default(employee)
-  // Who approves this employee's leave. Null: any admin approves it.
+  // null = admins approve
   managerId         String?
   manager           Employee?          @relation("ManagerReports", fields: [managerId], references: [id], onDelete: SetNull)
   reports           Employee[]         @relation("ManagerReports")
@@ -106,9 +92,6 @@ enum UserRole {
   admin
 }
 
-// pending: waiting for the manager, days already reserved.
-// approved / rejected: decided by the manager (rejected gives the days back).
-// cancelled: withdrawn by the employee while pending (days given back).
 enum LeaveStatus {
   pending
   approved
@@ -116,18 +99,14 @@ enum LeaveStatus {
   cancelled
 }
 
-// One row per leave request. The unique requestId lets a retried request
-// be recognised so its days are not reserved twice.
 model LeaveApplication {
   id           String      @id @default(uuid())
   userId       String
   employee     Employee    @relation("LeaveApplicant", fields: [userId], references: [id], onDelete: Cascade)
   days         Int
-  // The employee's own words, if they gave a reason
   reason       String?
   requestId    String      @unique
   status       LeaveStatus @default(pending)
-  // Who approved or rejected it, when, and any note they left
   decidedById  String?
   decidedBy    Employee?   @relation("LeaveDecider", fields: [decidedById], references: [id], onDelete: SetNull)
   decidedAt    DateTime?
@@ -138,8 +117,7 @@ model LeaveApplication {
   @@index([status])
 }
 
-// Long-term facts about a user (e.g. response_style → "short answers").
-// One row per (userId, key), so saving an existing key updates it in place.
+// long-term memory, e.g. response_style -> "short answers"
 model UserMemory {
   id        String   @id @default(uuid())
   userId    String
@@ -151,17 +129,12 @@ model UserMemory {
   @@unique([userId, key])
 }
 
-// Who owns each LangGraph thread. The checkpointer only stores run state, so
-// this is what a resume route checks before resuming a paused run: a
-// threadId alone must not let one user approve another user's leave.
+// owner of a paused langgraph run, checked before resuming
 model AgentThread {
-  // The LangGraph thread_id
   id             String        @id
   userId         String
   employee       Employee      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // The chat a paused /api/chat run belongs to, so resuming saves its
-  // outcome there. Null for /api/langgraph-test runs, which aren't part of
-  // a saved conversation.
+  // null for /api/langgraph-test runs
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())

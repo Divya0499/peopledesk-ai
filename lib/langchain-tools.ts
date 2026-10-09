@@ -3,11 +3,8 @@ import { z } from "zod";
 import { listMyLeaveRequests, MAX_REASON_LENGTH, requestLeave } from "./leave";
 import { getEmployeeDetails, getLeaveBalance } from "./tools";
 
-// Wraps the existing getLeaveBalance so the Prisma query stays in lib/tools.ts.
-// Built per request with the current employee's userId, which comes from the
-// login session (getCurrentUser), never from the model: the schema has
-// no userId, so no prompt, user message or retrieved document can make the
-// model look up another employee.
+// userId comes from the session, not from the model, so it can't look up
+// someone else
 export function createGetLeaveBalanceTool(userId: string) {
   return tool(
     async () => {
@@ -22,7 +19,6 @@ export function createGetLeaveBalanceTool(userId: string) {
   );
 }
 
-// Same as getLeaveBalance: the userId is fixed when the tool is built
 export function createGetEmployeeDetailsTool(userId: string) {
   return tool(
     async () => {
@@ -37,8 +33,6 @@ export function createGetEmployeeDetailsTool(userId: string) {
   );
 }
 
-// The employee's own leave requests and their status, so the assistant can
-// answer "was my leave approved?"
 export function createGetMyLeaveRequestsTool(userId: string) {
   return tool(
     async () => {
@@ -62,20 +56,13 @@ export function createGetMyLeaveRequestsTool(userId: string) {
   );
 }
 
-// An action tool: it writes to PostgreSQL. requestLeave() still enforces the
-// leave rules and idempotency itself. It sends the request to the
-// employee's manager; it doesn't approve anything.
-// Built per request so the application supplies both userId and requestId:
-// the model only chooses days and the reason, so it can't request leave for
-// someone else or choose or change the idempotency key.
+// model only picks days + reason. userId and requestId are set by us
 export function createApplyLeaveTool(userId: string, requestId: string) {
   return tool(
     async ({ days, reason }) => {
       const result = await requestLeave(userId, days, requestId, reason);
 
-      // requestId is the app's idempotency key: requestLeave() and the
-      // database use it, the model never needs it. Left out of what the
-      // model sees, so it can't repeat it to the user whatever the prompt.
+      // don't show requestId to the model
       return Object.fromEntries(
         Object.entries(result).filter(([key]) => key !== "requestId"),
       );
@@ -88,7 +75,7 @@ export function createApplyLeaveTool(userId: string, requestId: string) {
         days: z
           .number()
           .int()
-          // Not .positive(): that becomes exclusiveMinimum, which Gemini rejects
+          // .positive() gives exclusiveMinimum which gemini doesn't accept
           .min(1)
           .describe("Number of leave days"),
         reason: z

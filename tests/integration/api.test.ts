@@ -7,9 +7,7 @@ import type { CurrentUser } from "@/lib/session";
 
 import { describeDb, PASSWORD, resetDatabase, seedTeam } from "../support/db";
 
-// Route handlers read the caller from the session cookie, which needs a real
-// Next.js request. Tests set the caller here instead; everything after that
-// (the role checks, validation, database) runs for real.
+// mock the session, everything else is real
 const session = vi.hoisted(() => ({
   user: null as CurrentUser | null,
   createSession: vi.fn(),
