@@ -1,5 +1,9 @@
 # PeopleDesk AI
 
+[![CI](https://github.com/Divya0499/peopledesk-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Divya0499/peopledesk-ai/actions/workflows/ci.yml)
+
+**[Live demo](https://peopledesk-ai.vercel.app)** · log in with any demo account below (password `PeopleDesk@123`)
+
 An HR assistant for employees. You chat with it and ask things like *"How many leave days do I have?"*, *"What's the hotel limit on work trips?"* or *"Apply 2 days of leave for a doctor's appointment."*
 
 Behind the chat there's a supervisor agent that decides who should answer: the company policy PDFs (RAG, with sources), the employee's own HR data, or the leave workflow, where the request goes to their manager for approval.
