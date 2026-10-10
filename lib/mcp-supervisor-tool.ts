@@ -1,18 +1,18 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { createMcpAgent } from "./mcp-agent";
+import { createMcpClient } from "./mcp-client";
+import { createMcpLeaveBalanceTool } from "./mcp-langchain-tools";
 
-// like askHrAgent but goes through MCP
+// Gets the leave balance through MCP: supervisor -> MCP client -> MCP server.
+// It calls the MCP tool directly; an agent in between only picked that one
+// tool and restated its result, two extra model calls for a 0.1s lookup.
 export function createAskMcpHrAgentTool(userId: string) {
   return tool(
-    async ({ request }) => {
-      const { agent, client } = await createMcpAgent(userId);
+    async () => {
+      const client = await createMcpClient(userId);
 
       try {
-        const result = await agent.invoke({
-          messages: [{ role: "user", content: request }],
-        });
-        return result.messages[result.messages.length - 1].text;
+        return await createMcpLeaveBalanceTool(client).invoke({});
       } finally {
         await client.close();
       }
@@ -20,9 +20,12 @@ export function createAskMcpHrAgentTool(userId: string) {
     {
       name: "askMcpHrAgent",
       description:
-        "Delegate the current employee's leave balance question to an MCP-backed HR agent. Not for policy questions.",
+        "Get the current employee's leave balance (days available and days pending approval) from the HR MCP server. Not for policy questions.",
       schema: z.object({
-        request: z.string().describe("The HR task to delegate"),
+        request: z
+          .string()
+          .optional()
+          .describe("The employee's question; not needed to look it up"),
       }),
     },
   );

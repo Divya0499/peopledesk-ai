@@ -14,7 +14,7 @@ I started this as a "chat with a PDF" app to learn RAG, and kept adding to it: a
 
 ## Features
 
-- **Supervisor + specialist agents** – the supervisor sends each question to a RAG agent, an HR agent (a LangGraph graph) or an MCP-based agent. The answer streams back to the UI.
+- **Supervisor + specialists** – a supervisor agent sends each question to the RAG chain (policy documents), an HR agent (a LangGraph graph) or the HR MCP server (leave balance). The answer streams back to the UI, with what the assistant is doing ("Searching company policies…") shown while it works.
 - **Leave requests with two approvals** – first the employee confirms in the chat (LangGraph `interrupt()`, saved in PostgreSQL so it survives a restart), then their manager approves or rejects it. Days are blocked when the request is made and returned if it's rejected or cancelled.
 - **No double deductions** – the balance check and deduction are one conditional update in a transaction, and every request has an idempotency key, so double clicks, retries or parallel requests can't overdraw the balance. Tested against a real DB.
 - **RAG with an eval** – retrieval, Gemini reranking, answers with sources, and a [31-question eval](#rag-evaluation).
@@ -54,9 +54,9 @@ flowchart TD
     UI["Chat · Leave · Employees pages"] -->|"question (NDJSON stream back)"| Chat["POST /api/chat"]
     UI -->|"form / approve / reject"| LeaveAPI["/api/leave"]
     Chat --> Sup["Supervisor agent"]
-    Sup -->|askRagAgent| RAG["RAG agent"]
+    Sup -->|askRagAgent| RAG["RAG chain<br/>retrieve → rerank → answer"]
     Sup -->|askHrAgent| HR["HR graph (LangGraph)"]
-    Sup -->|askMcpHrAgent| MCP["MCP agent → MCP server"]
+    Sup -->|askMcpHrAgent| MCP["MCP client → MCP server"]
     RAG --> Pinecone[("Pinecone")]
     HR -->|"interrupt(): employee confirms"| Leave["lib/leave.ts"]
     LeaveAPI --> Leave
