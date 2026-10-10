@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import Avatar from "@/app/_components/Avatar";
@@ -11,11 +12,11 @@ import type { TeamRequest } from "./types";
 
 type TeamApprovalsProps = {
   requests: TeamRequest[];
-  onChanged: () => void;
 };
 
 // Requests from the manager's team waiting for a decision, oldest first
-function TeamApprovals({ requests, onChanged }: TeamApprovalsProps) {
+function TeamApprovals({ requests }: TeamApprovalsProps) {
+  const router = useRouter();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -50,7 +51,8 @@ function TeamApprovals({ requests, onChanged }: TeamApprovalsProps) {
         throw new Error(data?.error ?? `Server error: ${response.status}`);
       }
 
-      onChanged();
+      // reloads the page's server data; this component keeps its state
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save decision");
     } finally {

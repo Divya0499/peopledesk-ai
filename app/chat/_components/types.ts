@@ -31,9 +31,14 @@ export type DocumentOption = {
   error: string | null;
 };
 
+// what the sidebar lists
 export type ConversationSummary = {
   id: string;
   title: string | null;
+};
+
+// an opened conversation
+export type ConversationDetail = ConversationSummary & {
   messages: {
     role: "user" | "ai";
     text: string;

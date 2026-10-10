@@ -1,7 +1,3 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
-
 import {
   CalendarIcon,
   CheckIcon,
@@ -12,17 +8,6 @@ import MyRequests from "./MyRequests";
 import RequestLeaveForm from "./RequestLeaveForm";
 import TeamApprovals from "./TeamApprovals";
 import type { LeaveData } from "./types";
-
-async function fetchLeave(): Promise<LeaveData> {
-  const response = await fetch("/api/leave", { cache: "no-store" });
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.error ?? `Server error: ${response.status}`);
-  }
-
-  return data;
-}
 
 type StatCardProps = {
   label: string;
@@ -78,55 +63,10 @@ function StatCard({ label, value, hint, icon: Icon, tone }: StatCardProps) {
   );
 }
 
-// just reload everything after each action, simpler than updating state
-function LeaveDashboard() {
-  const [data, setData] = useState<LeaveData | null>(null);
-  const [error, setError] = useState("");
-
-  const reload = useCallback(async () => {
-    try {
-      setData(await fetchLeave());
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load leave");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    reload();
-  }, [reload]);
-
-  if (error && !data) {
-    return (
-      <p
-        role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
-      >
-        {error}
-      </p>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="flex animate-pulse flex-col gap-6" aria-label="Loading">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-36 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70"
-            />
-          ))}
-        </div>
-        <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-          <div className="h-72 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
-          <div className="h-72 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
-        </div>
-      </div>
-    );
-  }
-
+// A server component: the page loads the data and renders the cards here.
+// Only the form and the request lists are client components, for the buttons;
+// after an action they refresh this page's data with router.refresh().
+function LeaveDashboard({ data }: { data: LeaveData }) {
   const approvedDays = data.mine
     .filter((request) => request.status === "approved")
     .reduce((total, request) => total + request.days, 0);
@@ -167,17 +107,14 @@ function LeaveDashboard() {
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_22rem]">
         {/* first in the page on phones, right-hand column on wide screens */}
         <div className="lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
-          <RequestLeaveForm
-            available={data.leaveBalance}
-            onRequested={reload}
-          />
+          <RequestLeaveForm available={data.leaveBalance} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
           {data.teamPending && (
-            <TeamApprovals requests={data.teamPending} onChanged={reload} />
+            <TeamApprovals requests={data.teamPending} />
           )}
-          <MyRequests requests={data.mine} onChanged={reload} />
+          <MyRequests requests={data.mine} />
         </div>
       </div>
     </div>

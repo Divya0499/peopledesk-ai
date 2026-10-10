@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 
 import PageShell from "@/app/_components/PageShell";
+import { getLeaveOverview } from "@/lib/leave-overview";
 import { getCurrentUser } from "@/lib/session";
 
 import LeaveDashboard from "./_components/LeaveDashboard";
 
-// Checked on the server, so a visitor without a session never sees the page
+// Checked and loaded on the server, so a visitor without a session never sees
+// the page and the page arrives with its data instead of fetching it after
 async function LeavePage() {
   const user = await getCurrentUser();
 
@@ -13,13 +15,15 @@ async function LeavePage() {
     redirect("/login");
   }
 
+  const data = await getLeaveOverview(user);
+
   return (
     <PageShell
       user={user}
       title="Leave"
       description="Your leave balance, requests and team approvals in one place."
     >
-      <LeaveDashboard />
+      <LeaveDashboard data={data} />
     </PageShell>
   );
 }

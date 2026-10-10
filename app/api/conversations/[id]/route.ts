@@ -1,9 +1,38 @@
+import { getConversation } from "@/lib/conversations";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import {
   deleteSupervisorRun,
   getSupervisorCheckpointer,
 } from "@/lib/supervisor-agent";
+
+// one conversation's messages and any leave request still waiting for the
+// employee to confirm
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    const conversation = await getConversation(user.userId, id);
+
+    if (!conversation) {
+      return Response.json({ error: "Conversation not found" }, { status: 404 });
+    }
+
+    return Response.json({ conversation });
+  } catch (error) {
+    console.error(error);
+
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
 
 export async function DELETE(
   _request: Request,
