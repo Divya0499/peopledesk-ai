@@ -8,7 +8,12 @@ import ConversationSidebar from "./ConversationSidebar";
 import DocumentList from "./DocumentList";
 import { MenuIcon, PlusIcon } from "./icons";
 import PdfUpload from "./PdfUpload";
-import type { ConversationSummary, DocumentOption, Message } from "./types";
+import type {
+  ConversationDetail,
+  ConversationSummary,
+  DocumentOption,
+  Message,
+} from "./types";
 
 const DOCUMENT_POLL_MS = 2000;
 
@@ -34,21 +39,44 @@ async function fetchConversations(): Promise<ConversationSummary[]> {
   return data.conversations;
 }
 
+async function fetchConversation(id: string): Promise<ConversationDetail> {
+  const response = await fetch(`/api/conversations/${id}`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error ?? `Server error: ${response.status}`);
+  }
+
+  return data.conversation;
+}
+
 type ChatLayoutProps = {
   isAdmin: boolean;
   userName: string;
   userRole: string;
+  // loaded by the server page, so the first render already has them
+  initialConversations: ConversationSummary[];
+  initialDocuments: DocumentOption[];
+  // the one in ?c=, if any
+  initialConversation: ConversationDetail | null;
 };
 
-function ChatLayout({ isAdmin, userName, userRole }: ChatLayoutProps) {
-  const [documents, setDocuments] = useState<DocumentOption[]>([]);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+function ChatLayout({
+  isAdmin,
+  userName,
+  userRole,
+  initialConversations,
+  initialDocuments,
+  initialConversation,
+}: ChatLayoutProps) {
+  const [documents, setDocuments] = useState(initialDocuments);
+  const [conversations, setConversations] = useState(initialConversations);
   const [activeConversation, setActiveConversation] =
-    useState<ConversationSummary | null>(null);
+    useState<ConversationDetail | null>(initialConversation);
   // bump to remount ChatWindow
   const [chatKey, setChatKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const toMessages = (conversation: ConversationSummary): Message[] =>
+  const toMessages = (conversation: ConversationDetail): Message[] =>
     withPendingApproval(
       conversation.messages.map((message) => ({
         role: message.role,
@@ -58,7 +86,7 @@ function ChatLayout({ isAdmin, userName, userRole }: ChatLayoutProps) {
       conversation.pendingApproval,
     );
 
-  const showChat = (conversation: ConversationSummary | null) => {
+  const showChat = (conversation: ConversationDetail | null) => {
     setActiveConversation(conversation);
     setSidebarOpen(false);
     setChatKey((key) => key + 1);
@@ -71,11 +99,10 @@ function ChatLayout({ isAdmin, userName, userRole }: ChatLayoutProps) {
 
   const newChat = () => showChat(null);
 
+  // only this conversation's messages, fetched fresh in case it changed
   const selectConversation = async (conversationId: string) => {
     try {
-      const latest = await fetchConversations();
-      setConversations(latest);
-      showChat(latest.find((c) => c.id === conversationId) ?? null);
+      showChat(await fetchConversation(conversationId));
     } catch (error) {
       console.error("Could not load conversation", error);
     }
@@ -91,29 +118,6 @@ function ChatLayout({ isAdmin, userName, userRole }: ChatLayoutProps) {
     window.history.replaceState(null, "", `?c=${conversationId}`);
     loadConversations();
   };
-
-  useEffect(() => {
-    const openId = new URLSearchParams(window.location.search).get("c");
-
-    fetchConversations()
-      .then((loaded) => {
-        setConversations(loaded);
-
-        const open = loaded.find((c) => c.id === openId);
-
-        if (open) {
-          setActiveConversation(open);
-          setChatKey((key) => key + 1);
-        }
-      })
-      .catch((error) => console.error("Could not load conversations", error));
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments()
-      .then(setDocuments)
-      .catch((error) => console.error("Could not load documents", error));
-  }, []);
 
   // poll while something is still processing
   const processing = documents.some((doc) => doc.status === "processing");

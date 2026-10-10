@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import PageShell from "@/app/_components/PageShell";
+import { listEmployees } from "@/lib/employees";
 import { getCurrentUser } from "@/lib/session";
 
 import EmployeeManager from "./_components/EmployeeManager";
@@ -18,13 +19,15 @@ async function EmployeesPage() {
     redirect("/chat");
   }
 
+  const employees = await listEmployees();
+
   return (
     <PageShell
       user={user}
       title="Employees"
       description="Add people, set their manager and adjust leave balances."
     >
-      <EmployeeManager currentUserId={user.userId} />
+      <EmployeeManager employees={employees} currentUserId={user.userId} />
     </PageShell>
   );
 }

@@ -1,14 +1,8 @@
 import { z } from "zod";
 
-import {
-  isApprover,
-  listMyLeaveRequests,
-  listPendingForApprover,
-  MAX_REASON_LENGTH,
-  requestLeave,
-} from "@/lib/leave";
+import { MAX_REASON_LENGTH, requestLeave } from "@/lib/leave";
+import { getLeaveOverview } from "@/lib/leave-overview";
 import { getCurrentUser } from "@/lib/session";
-import { getLeaveBalance } from "@/lib/tools";
 
 const MAX_DAYS_PER_REQUEST = 60;
 
@@ -75,20 +69,7 @@ export async function GET() {
   }
 
   try {
-    const [balance, mine, approver] = await Promise.all([
-      getLeaveBalance(user.userId),
-      listMyLeaveRequests(user.userId),
-      isApprover(user),
-    ]);
-
-    return Response.json({
-      leaveBalance: "leaveBalance" in balance ? balance.leaveBalance : 0,
-      pendingDays: "pendingDays" in balance ? balance.pendingDays : 0,
-      mine,
-      isApprover: approver,
-      // null = not a manager, [] = nothing waiting
-      teamPending: approver ? await listPendingForApprover(user) : null,
-    });
+    return Response.json(await getLeaveOverview(user));
   } catch (error) {
     console.error(error);
 

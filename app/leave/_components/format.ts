@@ -1,6 +1,6 @@
 // "8 Oct 2026", in the viewer's time zone
-export function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+export function formatDate(date: Date | string) {
+  return new Date(date).toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",
     year: "numeric",

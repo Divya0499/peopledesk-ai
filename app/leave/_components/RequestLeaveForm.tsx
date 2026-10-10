@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import {
@@ -10,8 +11,6 @@ import {
 
 type RequestLeaveFormProps = {
   available: number;
-  // Called after a request is sent, so the page reloads its data
-  onRequested: () => void;
 };
 
 // One click fills the reason; the person can still type their own
@@ -21,7 +20,8 @@ const stepButtonClass =
   "grid size-10 shrink-0 place-items-center text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 
 // The non-chat way to request leave: the same rules as asking the assistant
-function RequestLeaveForm({ available, onRequested }: RequestLeaveFormProps) {
+function RequestLeaveForm({ available }: RequestLeaveFormProps) {
+  const router = useRouter();
   const [days, setDays] = useState("1");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -67,7 +67,8 @@ function RequestLeaveForm({ available, onRequested }: RequestLeaveFormProps) {
       setMessage(data.message);
       setDays("1");
       setReason("");
-      onRequested();
+      // reloads the page's server data; this component keeps its state
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {

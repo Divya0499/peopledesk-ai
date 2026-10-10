@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import {
@@ -16,7 +17,6 @@ import type { LeaveRequest, LeaveStatus } from "./types";
 
 type MyRequestsProps = {
   requests: LeaveRequest[];
-  onChanged: () => void;
 };
 
 const STATUS_ICONS: Record<LeaveStatus, { icon: typeof CheckIcon; className: string }> = {
@@ -39,7 +39,8 @@ const STATUS_ICONS: Record<LeaveStatus, { icon: typeof CheckIcon; className: str
 };
 
 // The employee's own requests, with Cancel on the pending ones
-function MyRequests({ requests, onChanged }: MyRequestsProps) {
+function MyRequests({ requests }: MyRequestsProps) {
+  const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
 
@@ -57,7 +58,8 @@ function MyRequests({ requests, onChanged }: MyRequestsProps) {
         throw new Error(data?.error ?? `Server error: ${response.status}`);
       }
 
-      onChanged();
+      // reloads the page's server data; this component keeps its state
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not cancel");
     } finally {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import Avatar from "@/app/_components/Avatar";
 import {
@@ -16,19 +17,10 @@ import EmployeeForm from "./EmployeeForm";
 import type { Employee } from "./types";
 
 type EmployeeManagerProps = {
+  // loaded by the server page; refreshed with router.refresh() after a save
+  employees: Employee[];
   currentUserId: string;
 };
-
-async function fetchEmployees(): Promise<Employee[]> {
-  const response = await fetch("/api/employees", { cache: "no-store" });
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.error ?? `Server error: ${response.status}`);
-  }
-
-  return data.employees;
-}
 
 function Summary({
   label,
@@ -56,59 +48,16 @@ function Summary({
 
 // The admin's employee list, with one form open at a time: adding a new
 // employee or editing an existing one
-function EmployeeManager({ currentUserId }: EmployeeManagerProps) {
-  const [employees, setEmployees] = useState<Employee[] | null>(null);
-  const [error, setError] = useState("");
+function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   // "new", an employee id being edited, or null when no form is open
   const [editing, setEditing] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      setEmployees(await fetchEmployees());
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load employees");
-    }
-  }, []);
-
-  useEffect(() => {
-    // The first load sets state once its fetch resolves
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    reload();
-  }, [reload]);
-
-  if (error && !employees) {
-    return (
-      <p
-        role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
-      >
-        {error}
-      </p>
-    );
-  }
-
-  if (!employees) {
-    return (
-      <div className="flex animate-pulse flex-col gap-6" aria-label="Loading">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-20 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70"
-            />
-          ))}
-        </div>
-        <div className="h-80 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
-      </div>
-    );
-  }
-
   const closeForm = () => setEditing(null);
   const saved = () => {
     setEditing(null);
-    reload();
+    router.refresh();
   };
 
   const query = search.trim().toLowerCase();

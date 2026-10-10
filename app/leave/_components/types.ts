@@ -1,4 +1,5 @@
-// Shapes returned by GET /api/leave (dates arrive as ISO strings)
+// What the leave page shows. Dates are Date objects when the server page
+// passes them, ISO strings when they come from GET /api/leave
 
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -7,8 +8,8 @@ export type LeaveRequest = {
   days: number;
   reason: string | null;
   status: LeaveStatus;
-  createdAt: string;
-  decidedAt: string | null;
+  createdAt: Date | string;
+  decidedAt: Date | string | null;
   decisionNote: string | null;
   decidedBy: { name: string } | null;
 };

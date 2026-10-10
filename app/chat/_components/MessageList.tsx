@@ -15,6 +15,8 @@ import type { Message } from "./types";
 type MessageListProps = {
   messages: Message[];
   loading: boolean;
+  // what the assistant is doing right now, e.g. "Searching company policies…"
+  status: string;
   firstName: string;
   hasDocuments: boolean;
   onSuggestion: (text: string) => void;
@@ -69,6 +71,7 @@ function Avatar() {
 function MessageList({
   messages,
   loading,
+  status,
   firstName,
   hasDocuments,
   onSuggestion,
@@ -183,7 +186,9 @@ function MessageList({
                 />
               ))}
             </div>
-            <span className="text-xs text-zinc-500">Thinking…</span>
+            <span className="text-xs text-zinc-500">
+              {status || "Thinking…"}
+            </span>
           </div>
         </div>
       )}

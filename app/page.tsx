@@ -1,5 +1,6 @@
-import Chat from "./chat/page";
+import { redirect } from "next/navigation";
 
+// The assistant is the home page
 export default function Home() {
-  return <Chat />;
+  redirect("/chat");
 }
