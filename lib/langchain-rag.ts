@@ -12,8 +12,9 @@ import {
   RAG_CHAIN_SYSTEM_PROMPT,
 } from "./untrusted-content";
 
-// if reranking is slower than this, just use pinecone's order
-const RERANK_TIMEOUT_MS = 8000;
+// if reranking is slower than this, just use pinecone's order: it usually
+// takes 1-3s, so a slow one means Gemini is busy and the user is waiting
+const RERANK_TIMEOUT_MS = 4000;
 
 type RagInput = {
   question: string;

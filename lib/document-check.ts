@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { model } from "./langchain-model";
+import { backgroundModel } from "./langchain-model";
 import { withRetry } from "./retry";
 import {
   formatUntrustedDocuments,
@@ -26,7 +26,7 @@ const checkSchema = z.object({
 
 export type DocumentCheck = z.infer<typeof checkSchema>;
 
-const checker = model.withStructuredOutput(checkSchema);
+const checker = backgroundModel.withStructuredOutput(checkSchema);
 
 const CHECK_PROMPT = `
 You check documents before they are added to a company's HR knowledge base.
