@@ -1,6 +1,9 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { LeaveStatus, UserRole } from "@/lib/generated/prisma/client";
+import { REJECT_REASON_REQUIRED } from "@/lib/leave-text";
 import { prisma } from "@/lib/prisma";
+
+export { REJECT_REASON_REQUIRED };
 
 // days are taken off the balance when the leave is requested, and given back
 // if it's rejected or cancelled. that way pending requests can't go over the balance
@@ -205,7 +208,7 @@ export async function isApprover(approver: Approver) {
 
 export type DecisionResult =
   | { ok: true; status: LeaveStatus }
-  | { ok: false; status: 403 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
 
 export async function decideLeave(
   approver: Approver,
@@ -213,6 +216,13 @@ export async function decideLeave(
   approve: boolean,
   note?: string,
 ): Promise<DecisionResult> {
+  const decisionNote = note?.trim().slice(0, MAX_NOTE_LENGTH) || null;
+
+  // an approval can be silent, a rejection has to say why
+  if (!approve && !decisionNote) {
+    return { ok: false, status: 400, error: REJECT_REASON_REQUIRED };
+  }
+
   const application = await prisma.leaveApplication.findFirst({
     where: { id: applicationId, employee: approvableBy(approver) },
     select: { id: true, userId: true, days: true, status: true },
@@ -232,7 +242,6 @@ export async function decideLeave(
   }
 
   const status: LeaveStatus = approve ? "approved" : "rejected";
-  const decisionNote = note?.trim().slice(0, MAX_NOTE_LENGTH) || null;
 
   const decided = await prisma.$transaction(async (tx) => {
     // status: "pending" in the where so two decisions at once can't both go through

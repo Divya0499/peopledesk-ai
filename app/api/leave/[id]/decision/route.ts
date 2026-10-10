@@ -22,7 +22,10 @@ export async function POST(
 
   if (!body.success) {
     return Response.json(
-      { error: "Send approve (true or false) and an optional note" },
+      {
+        error:
+          "Send approve (true or false) and a note (required when rejecting)",
+      },
       { status: 400 },
     );
   }
