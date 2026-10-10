@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import Avatar from "@/app/_components/Avatar";
 import { CheckIcon, CloseIcon, UsersIcon } from "@/app/chat/_components/icons";
+import { REJECT_REASON_REQUIRED } from "@/lib/leave-text";
 
 import { dayLabel, formatDate } from "./format";
 import type { TeamRequest } from "./types";
@@ -18,10 +19,21 @@ function TeamApprovals({ requests, onChanged }: TeamApprovalsProps) {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  // the request whose Reject was clicked with no reason typed
+  const [missingReasonId, setMissingReasonId] = useState("");
 
   async function decide(id: string, approve: boolean) {
-    setBusyId(id);
     setError("");
+
+    // the server refuses this too; checking here saves a round trip
+    if (!approve && !notes[id]?.trim()) {
+      setMissingReasonId(id);
+      document.getElementById(`note-${id}`)?.focus();
+      return;
+    }
+
+    setMissingReasonId("");
+    setBusyId(id);
 
     try {
       const response = await fetch(`/api/leave/${id}/decision`, {
@@ -112,17 +124,28 @@ function TeamApprovals({ requests, onChanged }: TeamApprovalsProps) {
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <input
+                  id={`note-${request.id}`}
                   value={notes[request.id] ?? ""}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setNotes((prev) => ({
                       ...prev,
                       [request.id]: event.target.value,
-                    }))
-                  }
+                    }));
+
+                    if (missingReasonId === request.id) {
+                      setMissingReasonId("");
+                    }
+                  }}
                   maxLength={500}
-                  placeholder="Add a note (optional)"
+                  placeholder="Note (required to reject)"
                   aria-label={`Note for ${request.employee.name}`}
-                  className="min-w-0 flex-1 basis-48 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+                  aria-invalid={missingReasonId === request.id || undefined}
+                  aria-describedby={
+                    missingReasonId === request.id
+                      ? `note-error-${request.id}`
+                      : undefined
+                  }
+                  className="min-w-0 flex-1 basis-48 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 aria-invalid:border-red-400 aria-invalid:ring-4 aria-invalid:ring-red-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:aria-invalid:border-red-700"
                 />
                 <button
                   type="button"
@@ -143,6 +166,16 @@ function TeamApprovals({ requests, onChanged }: TeamApprovalsProps) {
                   Reject
                 </button>
               </div>
+
+              {missingReasonId === request.id && (
+                <p
+                  id={`note-error-${request.id}`}
+                  role="alert"
+                  className="mt-2 text-sm text-red-600 dark:text-red-400"
+                >
+                  {REJECT_REASON_REQUIRED}
+                </p>
+              )}
             </li>
           ))}
         </ul>

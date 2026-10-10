@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { login, logout, users } from "./helpers";
+import { appAlert, login, logout, users } from "./helpers";
 
 async function openLeave(page: Page) {
   await page
@@ -61,6 +61,17 @@ test("a rejected request gives the days back", async ({ page }) => {
 
   await login(page, users.manager.email);
   await openLeave(page);
+
+  // a rejection needs a reason; without one nothing is sent
+  await page.getByRole("button", { name: "Reject" }).click();
+  await expect(appAlert(page)).toHaveText(
+    "Add a reason so the employee knows why their leave was rejected.",
+  );
+  await expect(page.getByText("Nothing waiting")).toHaveCount(0);
+
+  await page
+    .getByLabel(`Note for ${users.employee2.name}`)
+    .fill("Release week, please pick other dates");
   await page.getByRole("button", { name: "Reject" }).click();
   await expect(page.getByText("Nothing waiting")).toBeVisible();
   await logout(page);
@@ -68,6 +79,11 @@ test("a rejected request gives the days back", async ({ page }) => {
   await login(page, users.employee2.email);
   await openLeave(page);
   await expect(page.getByText("rejected", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Rejected by Vikram Shah: “Release week, please pick other dates”",
+    ),
+  ).toBeVisible();
   await expect(available(page)).toHaveText(String(before));
 });
 

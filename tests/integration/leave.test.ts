@@ -5,6 +5,8 @@ import {
   decideLeave,
   isApprover,
   listPendingForApprover,
+  NO_APPROVER_ERROR,
+  REJECT_REASON_REQUIRED,
   requestLeave,
 } from "@/lib/leave";
 import { prisma } from "@/lib/prisma";
@@ -122,9 +124,34 @@ describeDb("leave workflow", () => {
   it("gives the days back when the manager rejects", async () => {
     await requestLeave("alice", 3, "r1");
 
-    await decideLeave(managerUser, await pendingId("alice"), false);
+    expect(
+      await decideLeave(managerUser, await pendingId("alice"), false, "Release week"),
+    ).toEqual({ ok: true, status: "rejected" });
 
     expect(await balanceOf("alice")).toBe(10);
+    const saved = await prisma.leaveApplication.findFirstOrThrow({
+      where: { userId: "alice" },
+    });
+    expect(saved.decisionNote).toBe("Release week");
+  });
+
+  it("won't reject without a reason, and changes nothing", async () => {
+    await requestLeave("alice", 3, "r1");
+    const id = await pendingId("alice");
+
+    for (const note of [undefined, "", "   "]) {
+      expect(await decideLeave(managerUser, id, false, note)).toEqual({
+        ok: false,
+        status: 400,
+        error: REJECT_REASON_REQUIRED,
+      });
+    }
+
+    const saved = await prisma.leaveApplication.findUniqueOrThrow({
+      where: { id },
+    });
+    expect(saved.status).toBe("pending");
+    expect(await balanceOf("alice")).toBe(7);
   });
 
   it("only lets the employee's own manager decide", async () => {
@@ -151,7 +178,7 @@ describeDb("leave workflow", () => {
 
     const results = await Promise.all([
       decideLeave(managerUser, id, true),
-      decideLeave(managerUser, id, false),
+      decideLeave(managerUser, id, false, "Too busy"),
     ]);
 
     expect(results.filter((result) => result.ok)).toHaveLength(1);
@@ -183,11 +210,50 @@ describeDb("leave workflow", () => {
   });
 
   it("never lets an admin approve their own leave", async () => {
+    // a second admin, so the request has someone who can decide it
+    await prisma.employee.create({
+      data: {
+        id: "admin2",
+        name: "Admin Two",
+        email: "admin2@test.dev",
+        role: "admin",
+        department: "HR",
+        leaveBalance: 10,
+        passwordHash: "unused",
+      },
+    });
     await requestLeave("admin", 1, "r1");
+    const id = await pendingId("admin");
 
+    expect(await decideLeave(adminUser, id, true)).toMatchObject({
+      ok: false,
+      status: 404,
+    });
     expect(
-      await decideLeave(adminUser, await pendingId("admin"), true),
-    ).toMatchObject({ ok: false, status: 404 });
+      await decideLeave({ userId: "admin2", role: "admin" }, id, true),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("refuses a request no one could approve and reserves nothing", async () => {
+    // the only admin has no manager, and can't approve their own leave
+    const result = await requestLeave("admin", 2, "r1");
+
+    expect(result).toMatchObject({
+      success: false,
+      error: NO_APPROVER_ERROR,
+    });
+    expect(await balanceOf("admin")).toBe(10);
+    expect(await prisma.leaveApplication.count()).toBe(0);
+
+    // once they have a manager, the same request goes through
+    await prisma.employee.update({
+      where: { id: "admin" },
+      data: { managerId: "manager" },
+    });
+    expect(await requestLeave("admin", 2, "r2")).toMatchObject({
+      success: true,
+      approver: "Manager",
+    });
   });
 
   it("lists only the approver's own team's pending requests", async () => {
