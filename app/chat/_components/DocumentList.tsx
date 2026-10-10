@@ -54,7 +54,7 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
         )}
       </h2>
 
-      <ul className="max-h-48 overflow-y-auto px-3">
+      <ul className="max-h-40 overflow-y-auto px-3">
         {documents.length === 0 && (
           <li className="px-2 py-1.5 text-sm text-zinc-400">
             No documents uploaded
@@ -111,7 +111,13 @@ function DocumentList({ documents, onDelete, upload }: DocumentListProps) {
                 disabled={deleting}
                 aria-label={`Delete ${doc.fileName}`}
                 title="Delete"
-                className="shrink-0 rounded p-1 text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
+                // always shown for rejected / failed ones, which are only kept
+                // so the admin can read why; and on phones, which can't hover
+                className={`shrink-0 rounded p-1 text-zinc-400 transition ${
+                  doc.status === "rejected" || doc.status === "failed"
+                    ? ""
+                    : "md:opacity-0 md:group-hover:opacity-100"
+                } hover:bg-red-100 hover:text-red-600 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400`}
               >
                 <TrashIcon className="size-3.5" />
               </button>

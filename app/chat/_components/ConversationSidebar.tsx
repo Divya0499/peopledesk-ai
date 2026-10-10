@@ -75,7 +75,7 @@ function ConversationSidebar({
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/95 transition-transform md:static md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-900 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-zinc-50/95 transition-transform md:static md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-900 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -109,7 +109,9 @@ function ConversationSidebar({
           Recent chats
         </h2>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        {/* keeps room for a few chats even when the document list is long;
+            on a very short screen the whole sidebar scrolls instead */}
+        <nav className="min-h-36 flex-1 overflow-y-auto px-3 pb-4">
           {conversations.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-zinc-400">
               No conversations yet
