@@ -2,16 +2,18 @@
 
 import { useRef, useState } from "react";
 import { UploadIcon } from "./icons";
+import type { DocumentOption } from "./types";
 
 type FileStatus =
   | { fileName: string; type: "waiting" | "uploading" | "sent" }
   | { fileName: string; type: "error"; message: string };
 
 type PdfUploadProps = {
-  onUploaded: () => void;
+  // gets the new document (status "processing") from the upload response
+  onUploaded: (document: DocumentOption) => void;
 };
 
-async function uploadFile(file: File) {
+async function uploadFile(file: File): Promise<DocumentOption> {
   const formData = new FormData();
 
   formData.append("file", file);
@@ -26,7 +28,13 @@ async function uploadFile(file: File) {
   if (!response.ok) {
     throw new Error(data.error ?? `Server error: ${response.status}`);
   }
+
+  return data.document;
 }
+
+// "sent" lines go away after this; the document list shows each file's
+// status from then on, and the sidebar keeps room for the chats
+const SENT_VISIBLE_MS = 4000;
 
 export default function PdfUpload({ onUploaded }: PdfUploadProps) {
   const [files, setFiles] = useState<FileStatus[]>([]);
@@ -47,10 +55,10 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
       setFileStatus(index, { fileName: file.name, type: "uploading" });
 
       try {
-        await uploadFile(file);
+        const uploaded = await uploadFile(file);
 
         setFileStatus(index, { fileName: file.name, type: "sent" });
-        onUploaded();
+        onUploaded(uploaded);
       } catch (error) {
         setFileStatus(index, {
           fileName: file.name,
@@ -59,6 +67,12 @@ export default function PdfUpload({ onUploaded }: PdfUploadProps) {
         });
       }
     }
+
+    // errors stay until the next upload, so they can still be read
+    setTimeout(
+      () => setFiles((prev) => prev.filter((file) => file.type !== "sent")),
+      SENT_VISIBLE_MS,
+    );
   };
 
   return (

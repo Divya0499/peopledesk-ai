@@ -15,7 +15,10 @@ import type {
   Message,
 } from "./types";
 
-const DOCUMENT_POLL_MS = 2000;
+// while a PDF is processing, ask again after 2s, then wait 1.5x longer each
+// time up to 10s: processing takes 10-60s, so this asks far less often
+const POLL_START_MS = 2000;
+const POLL_MAX_MS = 10_000;
 
 async function fetchDocuments(): Promise<DocumentOption[]> {
   const response = await fetch("/api/documents");
@@ -121,20 +124,57 @@ function ChatLayout({
 
   // poll while something is still processing
   const processing = documents.some((doc) => doc.status === "processing");
+  // bumped by each upload, so polling starts again from the short delay
+  const [uploadCount, setUploadCount] = useState(0);
 
   useEffect(() => {
     if (!processing) {
       return;
     }
 
-    const timer = setInterval(() => {
-      fetchDocuments()
-        .then(setDocuments)
-        .catch((error) => console.error("Could not load documents", error));
-    }, DOCUMENT_POLL_MS);
+    let delay = POLL_START_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
 
-    return () => clearInterval(timer);
-  }, [processing]);
+    const schedule = () => {
+      timer = setTimeout(poll, delay);
+      delay = Math.min(delay * 1.5, POLL_MAX_MS);
+    };
+
+    async function poll() {
+      // nobody is looking; check again when the tab is visible
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      try {
+        setDocuments(await fetchDocuments());
+      } catch (error) {
+        console.error("Could not load documents", error);
+      }
+
+      if (!stopped) {
+        schedule();
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        clearTimeout(timer);
+        delay = POLL_START_MS;
+        poll();
+      }
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [processing, uploadCount]);
 
   const handleDeleteConversation = async (deletedId: string) => {
     const response = await fetch(`/api/conversations/${deletedId}`, {
@@ -166,12 +206,13 @@ function ChatLayout({
     setDocuments((prev) => prev.filter((doc) => doc.id !== deletedId));
   };
 
-  const handleUploaded = async () => {
-    try {
-      setDocuments(await fetchDocuments());
-    } catch (error) {
-      console.error("Could not load documents", error);
-    }
+  // the upload response is the new document, so no extra fetch is needed
+  const handleUploaded = (uploaded: DocumentOption) => {
+    setDocuments((prev) => [
+      uploaded,
+      ...prev.filter((doc) => doc.id !== uploaded.id),
+    ]);
+    setUploadCount((count) => count + 1);
   };
 
   return (

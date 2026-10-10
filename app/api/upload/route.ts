@@ -75,7 +75,13 @@ export async function POST(request: Request) {
 
     const document = await prisma.document.create({
       data: { fileName: file.name, uploadedById: user.userId },
-      select: { id: true, fileName: true, status: true },
+      select: {
+        id: true,
+        fileName: true,
+        chunkCount: true,
+        status: true,
+        error: true,
+      },
     });
 
     // the slow part (parsing, checking, embedding) runs after we respond
@@ -86,6 +92,8 @@ export async function POST(request: Request) {
         documentId: document.id,
         fileName: document.fileName,
         status: document.status,
+        // the full row, so the page can list it without fetching again
+        document,
       },
       { status: 202 },
     );
