@@ -7,6 +7,7 @@ import { createAgent, dynamicSystemPromptMiddleware } from "langchain";
 import { ASSISTANT_SCOPE_RULES } from "./assistant-scope";
 import { model } from "./langchain-model";
 import { getMemories } from "./memory";
+import { UNTRUSTED_TOOL_RESULT_RULES } from "./untrusted-content";
 import {
   createGetMemoriesTool,
   createGetMemoryTool,
@@ -180,6 +181,8 @@ and delegate each part of it to the right specialist.
 - Never pass internal request IDs, thread IDs, tool-call IDs or other
   internal identifiers from a specialist's result on to the user.
 - Combine the specialists' results into one final answer.
+
+${UNTRUSTED_TOOL_RESULT_RULES}
 
 You handle the user's memories yourself with the memory tools; don't
 delegate them.

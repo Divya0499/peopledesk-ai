@@ -1,10 +1,10 @@
-import { HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { hrGraph } from "./hr-graph";
 import { graphConfig } from "./hr-graph-run";
-import type { RagSource } from "./langchain-rag";
-import { createRagAgent } from "./rag-agent";
+import { askRag, type RagSource } from "./langchain-rag";
+import { wrapUntrustedToolText } from "./untrusted-content";
 
 export function hrRunId(supervisorThreadId: string, toolCallId: string) {
   return `${supervisorThreadId}:${toolCallId}`;
@@ -57,37 +57,18 @@ export function createAskHrAgentTool(userId: string) {
   );
 }
 
-// returns [answer, sources] - the model only sees the answer
+// returns [answer, sources] - the model only sees the answer. calls the RAG
+// chain directly: a RAG agent in between only picked its one tool and then
+// repeated the chain's answer, two extra model calls on every policy question
 export function createAskRagAgentTool() {
   return tool(
     async ({ request }): Promise<[string, RagSource[]]> => {
-      const ragAgent = createRagAgent();
       const start = Date.now();
       console.log(`askRagAgent started at ${start}`);
-      const result = await ragAgent.invoke({
-        messages: [{ role: "user", content: request }],
-      });
+      const { text, sources } = await askRag(request);
       console.log(`askRagAgent finished after ${Date.now() - start}ms`);
 
-      // dedupe, it can search more than once
-      const sources = new Map<string, RagSource>();
-
-      for (const message of result.messages) {
-        if (
-          ToolMessage.isInstance(message) &&
-          message.name === "searchCompanyDocs" &&
-          Array.isArray(message.artifact)
-        ) {
-          for (const source of message.artifact as RagSource[]) {
-            sources.set(source.id, source);
-          }
-        }
-      }
-
-      return [
-        result.messages[result.messages.length - 1].text,
-        [...sources.values()],
-      ];
+      return [wrapUntrustedToolText(text), sources];
     },
     {
       name: "askRagAgent",
