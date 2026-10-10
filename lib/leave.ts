@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma";
 export const MAX_REASON_LENGTH = 500;
 export const MAX_NOTE_LENGTH = 500;
 
+export const NO_APPROVER_ERROR =
+  "No one can approve this leave yet: you don't have a manager and there's no other admin. An admin can assign you a manager on the Employees page.";
+
 type RequestedLeave = {
   userId: string;
   days: number;
@@ -65,6 +68,28 @@ export async function requestLeave(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      // someone has to be able to decide it (see approvableBy): their manager,
+      // or for people without one, an admin other than themselves. otherwise
+      // the days would stay reserved on a request no one can approve
+      const requester = await tx.employee.findUnique({
+        where: { id: userId },
+        select: { managerId: true },
+      });
+
+      if (!requester) {
+        return { success: false as const, error: "Employee not found" };
+      }
+
+      if (!requester.managerId) {
+        const otherAdmins = await tx.employee.count({
+          where: { role: "admin", id: { not: userId } },
+        });
+
+        if (otherAdmins === 0) {
+          return { success: false as const, error: NO_APPROVER_ERROR };
+        }
+      }
+
       // check the balance in the update itself so parallel requests can't overdraw it
       const reserved = await tx.employee.updateMany({
         where: { id: userId, leaveBalance: { gte: days } },
