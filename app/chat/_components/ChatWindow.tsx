@@ -5,6 +5,17 @@ import MessageList from "./MessageList";
 import { type ApprovalEvent, pendingApprovalText, toApproval } from "./approval";
 import type { Approval, DocumentOption, Message, Source } from "./types";
 
+// what the thinking indicator says while a specialist works, so a long answer
+// shows progress instead of a bare "Thinking…"
+const TOOL_STATUS: Record<string, string> = {
+  askRagAgent: "Searching company policies…",
+  askHrAgent: "Checking your HR records…",
+  askMcpHrAgent: "Checking your leave balance…",
+  getMemory: "Remembering your preferences…",
+  getMemories: "Remembering your preferences…",
+  saveMemory: "Saving that for next time…",
+};
+
 type ChatWindowProps = {
   documents: DocumentOption[];
   // for the greeting on an empty chat
@@ -23,6 +34,7 @@ function ChatWindow({
 }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
   const [conversationId, setConversationId] = useState(initialConversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +95,7 @@ function ChatWindow({
       );
 
     setLoading(true);
+    setStatus("");
 
     try {
         const response = await fetch("/api/chat/resume", {
@@ -169,8 +182,9 @@ function ChatWindow({
 
         const event = JSON.parse(line);
 
-        // TODO: show tool_start / tool_result in the UI
-        if (event.type === "text") {
+        if (event.type === "tool_start") {
+          setStatus(TOOL_STATUS[event.tool] ?? "Working on it…");
+        } else if (event.type === "text") {
           result += event.content;
         } else if (event.type === "sources") {
           for (const source of event.sources as Source[]) {
@@ -208,6 +222,7 @@ function ChatWindow({
   const sendMessage = async (text: string) => {
     setMessages((prev) => [...prev, { role: "user", text }]);
     setLoading(true);
+    setStatus("");
 
     try {
       let currentConversationId = conversationId;
@@ -251,6 +266,7 @@ function ChatWindow({
           <MessageList
             messages={messages}
             loading={loading}
+            status={status}
             firstName={firstName}
             hasDocuments={documents.some((doc) => doc.status === "ready")}
             onSuggestion={sendMessage}
