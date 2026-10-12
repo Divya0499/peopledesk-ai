@@ -2,7 +2,6 @@ import "server-only";
 
 import type { ApprovalEvent } from "@/lib/agent-stream-events";
 import { prisma } from "@/lib/prisma";
-import { getPendingApproval } from "@/lib/supervisor-agent";
 
 // The sidebar only needs titles. Messages are loaded per conversation when it
 // is opened, so a long history doesn't slow down every page load.
@@ -35,21 +34,29 @@ export async function getConversation(userId: string, conversationId: string) {
     return null;
   }
 
-  // checked together; a thread with nothing pending is finished, so drop it
-  const approvals = await Promise.all(
-    conversation.agentThreads.map(async (thread) => {
-      const approval = await getPendingApproval(userId, thread.id);
+  let pendingApproval: ApprovalEvent | null = null;
 
-      if (!approval) {
-        await prisma.agentThread.deleteMany({ where: { id: thread.id } });
-      }
+  if (conversation.agentThreads.length > 0) {
+    // Loaded only when needed: the agent pulls in LangChain, LangGraph and the
+    // Gemini model, which would otherwise slow down every /chat page load
+    const { getPendingApproval } = await import("@/lib/supervisor-agent");
 
-      return approval;
-    }),
-  );
+    // checked together; a thread with nothing pending is finished, so drop it
+    const approvals = await Promise.all(
+      conversation.agentThreads.map(async (thread) => {
+        const approval = await getPendingApproval(userId, thread.id);
 
-  const pendingApproval: ApprovalEvent | null =
-    approvals.find((approval) => approval !== undefined) ?? null;
+        if (!approval) {
+          await prisma.agentThread.deleteMany({ where: { id: thread.id } });
+        }
+
+        return approval;
+      }),
+    );
+
+    pendingApproval =
+      approvals.find((approval) => approval !== undefined) ?? null;
+  }
 
   return {
     id: conversation.id,
