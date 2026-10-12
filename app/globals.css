@@ -26,6 +26,20 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Chrome paints saved logins light blue over our input colors. Delaying the
+   background change keeps our own colors, and box-shadow stays free for the
+   focus ring */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  transition:
+    background-color 99999s ease-out 0s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
 /* New chat messages slide up into place */
 @keyframes message-in {
   from {

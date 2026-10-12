@@ -31,14 +31,14 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-dvh bg-zinc-50 dark:bg-zinc-950">
       {/* Brand panel, only on wide screens */}
-      <section className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-12 text-white lg:flex">
+      <section className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-950 via-zinc-900 to-violet-950 p-12 text-white lg:flex lg:border-r lg:border-white/5">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-32 -right-32 size-96 rounded-full bg-white/10 blur-3xl"
+          className="pointer-events-none absolute -top-32 -right-32 size-96 rounded-full bg-indigo-500/10 blur-3xl"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-40 -left-24 size-[28rem] rounded-full bg-violet-400/20 blur-3xl"
+          className="pointer-events-none absolute -bottom-40 -left-24 size-[28rem] rounded-full bg-violet-500/10 blur-3xl"
         />
 
         <div className="relative flex items-center gap-2.5">
@@ -52,7 +52,7 @@ export default function LoginPage() {
           <h2 className="text-4xl leading-tight font-semibold tracking-tight">
             Your HR desk, in one chat.
           </h2>
-          <p className="mt-4 text-indigo-100">
+          <p className="mt-4 text-zinc-300">
             Ask about company policies, check your leave balance and apply for
             leave without filling in a form.
           </p>
@@ -68,7 +68,7 @@ export default function LoginPage() {
                   </span>
                   <span>
                     <span className="block font-medium">{feature.title}</span>
-                    <span className="block text-sm text-indigo-200">
+                    <span className="block text-sm text-zinc-400">
                       {feature.text}
                     </span>
                   </span>
@@ -78,13 +78,18 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        <p className="relative text-xs text-indigo-200">
+        <p className="relative text-xs text-zinc-500">
           Built with Next.js, LangGraph, Gemini and Pinecone
         </p>
       </section>
 
-      <section className="flex flex-1 items-center justify-center px-4 py-10">
-        <div className="w-full max-w-sm">
+      <section className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-10">
+        {/* soft light behind the form so the side isn't a flat block */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-1/2 size-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/5 blur-3xl dark:bg-indigo-500/[0.07]"
+        />
+        <div className="relative w-full max-w-sm">
           <div className="mb-8">
             <div className="mb-6 lg:hidden">
               <Logo size="lg" />
