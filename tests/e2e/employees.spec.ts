@@ -57,6 +57,8 @@ test("only a super admin can give admin rights", async ({ page }) => {
   await expect(page.getByLabel("Role").locator("option")).toHaveText([
     "Employee",
   ]);
+  // close the panel first, its backdrop covers the log out button
+  await page.keyboard.press("Escape");
   await logout(page);
 
   await login(page, users.superAdmin.email);
@@ -86,5 +88,7 @@ test("changing a manager moves the employee's approvals", async ({ page }) => {
   await page.goto("/leave");
   await page.getByLabel("Days").fill("1");
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByText(/sent to Asha Rao for approval/)).toBeVisible();
+  await expect(
+    page.getByText(`sent to ${users.admin.name} for approval`),
+  ).toBeVisible();
 });
