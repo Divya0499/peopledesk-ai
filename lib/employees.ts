@@ -215,7 +215,11 @@ export async function updateEmployee(
       where: { id: employeeId },
       data: {
         ...data,
-        ...(password && { passwordHash: await hashPassword(password) }),
+        // a new password logs out every session that used the old one
+        ...(password && {
+          passwordHash: await hashPassword(password),
+          tokenVersion: { increment: 1 },
+        }),
       },
     });
 

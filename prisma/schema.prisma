@@ -70,6 +70,8 @@ model Employee {
   email             String             @unique
   // null = can't log in
   passwordHash      String?
+  // in every session token; bumping it logs out all existing sessions
+  tokenVersion      Int                @default(0)
   // pending requests are already subtracted
   leaveBalance      Int
   department        String

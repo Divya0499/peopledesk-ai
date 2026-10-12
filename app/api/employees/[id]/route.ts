@@ -3,7 +3,7 @@ import {
   updateEmployee,
   updateEmployeeSchema,
 } from "@/lib/employees";
-import { requireAdmin } from "@/lib/session";
+import { createSession, requireAdmin } from "@/lib/session";
 
 // An admin changes an employee's details, manager, role, balance or password
 export async function PATCH(
@@ -28,6 +28,11 @@ export async function PATCH(
 
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
+    }
+
+    // changing your own password logs out your other sessions, not this one
+    if (id === user.userId && body.data.password) {
+      await createSession(user.userId);
     }
 
     return Response.json({ id: result.id });

@@ -17,9 +17,12 @@ export type CurrentUser = {
   role: UserRole;
 };
 
-// only the id in the token, role is read from the db every time
+// only the id in the token, role is read from the db every time.
+// version has to match Employee.tokenVersion, so bumping that (e.g. on a
+// password change) logs out every existing session
 type SessionPayload = {
   userId: string;
+  version: number;
 };
 
 function getSecretKey() {
@@ -48,17 +51,26 @@ async function verifySession(token: string | undefined) {
       algorithms: ["HS256"],
     });
 
-    return typeof payload.userId === "string" && payload.userId
-      ? { userId: payload.userId }
-      : null;
+    if (typeof payload.userId !== "string" || !payload.userId) {
+      return null;
+    }
+
+    // tokens from before tokenVersion existed count as version 0
+    const version = typeof payload.version === "number" ? payload.version : 0;
+
+    return { userId: payload.userId, version };
   } catch {
     return null;
   }
 }
 
 export async function createSession(userId: string) {
+  const { tokenVersion } = await prisma.employee.findUniqueOrThrow({
+    where: { id: userId },
+    select: { tokenVersion: true },
+  });
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
-  const token = await signSession({ userId }, expiresAt);
+  const token = await signSession({ userId, version: tokenVersion }, expiresAt);
   const cookieStore = await cookies();
 
   cookieStore.set(SESSION_COOKIE, token, {
@@ -84,10 +96,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   // also handles deleted users
   const employee = await prisma.employee.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, tokenVersion: true },
   });
 
-  if (!employee) return null;
+  // version mismatch = the token was revoked (e.g. password changed)
+  if (!employee || employee.tokenVersion !== session.version) return null;
 
   return {
     userId: employee.id,
