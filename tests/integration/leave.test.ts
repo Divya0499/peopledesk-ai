@@ -3,6 +3,7 @@ import { beforeEach, expect, it } from "vitest";
 import {
   cancelLeave,
   decideLeave,
+  hasLeaveApprover,
   isApprover,
   listPendingForApprover,
   NO_APPROVER_ERROR,
@@ -244,12 +245,14 @@ describeDb("leave workflow", () => {
     });
     expect(await balanceOf("admin")).toBe(10);
     expect(await prisma.leaveApplication.count()).toBe(0);
+    expect(await hasLeaveApprover("admin")).toBe(false);
 
     // once they have a manager, the same request goes through
     await prisma.employee.update({
       where: { id: "admin" },
       data: { managerId: "manager" },
     });
+    expect(await hasLeaveApprover("admin")).toBe(true);
     expect(await requestLeave("admin", 2, "r2")).toMatchObject({
       success: true,
       approver: "Manager",

@@ -76,6 +76,9 @@ Employee: "Apply 2 days of leave"
   → Confirm → 2 days blocked + pending request created
   → Manager on /leave: Approve (days stay deducted) or Reject (days come back)
   → Employee can cancel while it's pending (days come back)
+
+If no one could approve it, there's no Confirm card: applyLeave runs straight
+away, is refused, nothing is reserved and the assistant explains why.
 ```
 
 If an employee has no manager, another admin approves. If there's no other admin either (e.g. `asha@peopledesk.dev` in the demo data), the request is refused until someone assigns them a manager, so days are never reserved on a request no one can decide. No one can approve their own leave. Chat and the leave form both go through `lib/leave.ts`, so the rules are the same.

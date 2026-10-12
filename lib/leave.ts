@@ -38,6 +38,33 @@ async function previousRequestResult(application: RequestedLeave) {
   };
 }
 
+// someone has to be able to decide their leave (see approvableBy): their
+// manager, or for people without one, an admin other than themselves.
+// null = employee not found
+export async function hasLeaveApprover(
+  userId: string,
+  client: Prisma.TransactionClient = prisma,
+) {
+  const requester = await client.employee.findUnique({
+    where: { id: userId },
+    select: { managerId: true },
+  });
+
+  if (!requester) {
+    return null;
+  }
+
+  if (requester.managerId) {
+    return true;
+  }
+
+  const otherAdmins = await client.employee.count({
+    where: { role: "admin", id: { not: userId } },
+  });
+
+  return otherAdmins > 0;
+}
+
 // requestId = idempotency key, same id twice returns the first result
 export async function requestLeave(
   userId: string,
@@ -71,26 +98,15 @@ export async function requestLeave(
 
   try {
     return await prisma.$transaction(async (tx) => {
-      // someone has to be able to decide it (see approvableBy): their manager,
-      // or for people without one, an admin other than themselves. otherwise
-      // the days would stay reserved on a request no one can approve
-      const requester = await tx.employee.findUnique({
-        where: { id: userId },
-        select: { managerId: true },
-      });
+      // otherwise the days would stay reserved on a request no one can approve
+      const canBeApproved = await hasLeaveApprover(userId, tx);
 
-      if (!requester) {
+      if (canBeApproved === null) {
         return { success: false as const, error: "Employee not found" };
       }
 
-      if (!requester.managerId) {
-        const otherAdmins = await tx.employee.count({
-          where: { role: "admin", id: { not: userId } },
-        });
-
-        if (otherAdmins === 0) {
-          return { success: false as const, error: NO_APPROVER_ERROR };
-        }
+      if (!canBeApproved) {
+        return { success: false as const, error: NO_APPROVER_ERROR };
       }
 
       // check the balance in the update itself so parallel requests can't overdraw it

@@ -62,11 +62,9 @@ function ApprovalCard({ approval, disabled, onDecision }: ApprovalCardProps) {
               : "text-red-700 dark:text-red-400"
           }`}
         >
-          {approval.status === "approved"
-            ? isLeave
-              ? "Sent for manager approval"
-              : "Confirmed"
-            : "Cancelled"}
+          {/* set on click, before the server answers. whether it was sent
+              is in the reply below */}
+          {approval.status === "approved" ? "Confirmed" : "Cancelled"}
         </p>
       )}
     </div>
