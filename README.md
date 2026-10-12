@@ -28,6 +28,7 @@ Created by `npm run db:seed`, password `PeopleDesk@123`:
 | Email | Role | What to try |
 |---|---|---|
 | `neha@peopledesk.dev` | Employee | Ask the assistant to apply leave, then check the **Leave** page |
+| `rohan@peopledesk.dev` | Employee | Same team as Neha (reports to Vikram) |
 | `vikram@peopledesk.dev` | Manager | Approve / reject on **Leave** |
 | `asha@peopledesk.dev` | HR admin | Upload policy PDFs, add employees on **Employees** |
 
@@ -77,7 +78,7 @@ Employee: "Apply 2 days of leave"
   → Employee can cancel while it's pending (days come back)
 ```
 
-If an employee has no manager, admins approve. No one can approve their own leave. Chat and the leave form both go through `lib/leave.ts`, so the rules are the same.
+If an employee has no manager, another admin approves. If there's no other admin either (e.g. `asha@peopledesk.dev` in the demo data), the request is refused until someone assigns them a manager, so days are never reserved on a request no one can decide. No one can approve their own leave. Chat and the leave form both go through `lib/leave.ts`, so the rules are the same.
 
 ## RAG evaluation
 
