@@ -6,7 +6,7 @@ test.describe("login", () => {
   test("rejects a wrong password with a generic message", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(users.employee.email);
-    await page.getByLabel("Password").fill("wrong-password");
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password");
     await page.getByRole("button", { name: "Log in" }).click();
 
     await expect(appAlert(page)).toHaveText("Invalid email or password");

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import Avatar from "@/app/_components/Avatar";
+import { EyeIcon, EyeOffIcon } from "@/app/chat/_components/icons";
 
 // The accounts prisma/seed.ts creates, so anyone trying the demo can log in
 // as each kind of user. They only exist where the seed has been run.
@@ -23,6 +24,7 @@ function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,15 +86,30 @@ function LoginForm() {
         >
           Password
         </label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          required
-          className={inputClass}
-        />
+        <div className="relative">
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+            className={`${inputClass} pr-11`}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((shown) => !shown)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 mt-2 grid w-11 place-items-center rounded-r-xl text-zinc-400 transition hover:text-zinc-700 focus-visible:text-indigo-600 focus-visible:outline-none dark:text-zinc-500 dark:hover:text-zinc-200"
+          >
+            {showPassword ? (
+              <EyeOffIcon className="size-4.5" />
+            ) : (
+              <EyeIcon className="size-4.5" />
+            )}
+          </button>
+        </div>
 
         <button
           type="submit"
