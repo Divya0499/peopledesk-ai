@@ -1,4 +1,5 @@
 import { listDocuments } from "@/lib/ingest";
+import { isAdminRole } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 // admins also see processing / failed ones
@@ -10,7 +11,7 @@ export async function GET() {
   }
 
   try {
-    const documents = await listDocuments(user.role === "admin");
+    const documents = await listDocuments(isAdminRole(user.role));
 
     return Response.json({ documents });
   } catch (error) {

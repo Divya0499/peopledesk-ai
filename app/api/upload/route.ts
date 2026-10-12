@@ -2,6 +2,7 @@ import { after } from "next/server";
 
 import { enqueueUpload } from "@/lib/ingest";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 // after() still counts against this
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (user.role !== "admin") {
+  if (!isAdminRole(user.role)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

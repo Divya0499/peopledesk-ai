@@ -12,6 +12,7 @@ import {
   ShieldIcon,
   UsersIcon,
 } from "@/app/chat/_components/icons";
+import { canAssignRole, isAdminRole, ROLE_LABELS, type Role } from "@/lib/roles";
 
 import EmployeeForm from "./EmployeeForm";
 import type { Employee } from "./types";
@@ -20,6 +21,17 @@ type EmployeeManagerProps = {
   // loaded by the server page; refreshed with router.refresh() after a save
   employees: Employee[];
   currentUserId: string;
+  // HR admins can't edit admin accounts; the API checks this again
+  currentUserRole: Role;
+};
+
+const ROLE_BADGES: Record<Role, string> = {
+  super_admin:
+    "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900",
+  admin:
+    "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900",
+  employee:
+    "bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-700",
 };
 
 function Summary({
@@ -48,7 +60,11 @@ function Summary({
 
 // The admin's employee list, with one form open at a time: adding a new
 // employee or editing an existing one
-function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
+function EmployeeManager({
+  employees,
+  currentUserId,
+  currentUserRole,
+}: EmployeeManagerProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   // "new", an employee id being edited, or null when no form is open
@@ -63,15 +79,21 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
   const query = search.trim().toLowerCase();
   const shown = query
     ? employees.filter((employee) =>
-        [employee.name, employee.email, employee.department].some((field) =>
-          field.toLowerCase().includes(query),
-        ),
+        [
+          employee.name,
+          employee.email,
+          employee.department,
+          employee.jobTitle ?? "",
+        ].some((field) => field.toLowerCase().includes(query)),
       )
     : employees;
 
   const departments = new Set(employees.map((e) => e.department)).size;
   const managers = employees.filter((e) => e._count.reports > 0).length;
-  const admins = employees.filter((e) => e.role === "admin").length;
+  const admins = employees.filter((e) => isAdminRole(e.role)).length;
+  const canEdit = (employee: Employee) =>
+    employee.id === currentUserId ||
+    canAssignRole(currentUserRole, employee.role);
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,7 +101,7 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
         <Summary label="People" value={employees.length} icon={UsersIcon} />
         <Summary label="Departments" value={departments} icon={BuildingIcon} />
         <Summary label="Managers" value={managers} icon={UsersIcon} />
-        <Summary label="HR admins" value={admins} icon={ShieldIcon} />
+        <Summary label="Admins" value={admins} icon={ShieldIcon} />
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -90,7 +112,7 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, email or department"
+              placeholder="Search by name, email, title or department"
               aria-label="Search people"
               className="block w-full rounded-lg border border-zinc-200 bg-zinc-50 py-2 pr-3 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
             />
@@ -153,7 +175,14 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
                             </span>
                           )}
                         </p>
-                        <p className="truncate text-zinc-500">{employee.email}</p>
+                        <p className="truncate text-zinc-500">
+                          {employee.jobTitle && (
+                            <span className="text-zinc-700 dark:text-zinc-300">
+                              {employee.jobTitle} ·{" "}
+                            </span>
+                          )}
+                          {employee.email}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -175,13 +204,9 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
                   </td>
                   <td className="px-4 py-3.5">
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${
-                        employee.role === "admin"
-                          ? "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900"
-                          : "bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-700"
-                      }`}
+                      className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ROLE_BADGES[employee.role]}`}
                     >
-                      {employee.role}
+                      {ROLE_LABELS[employee.role]}
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-right">
@@ -191,15 +216,17 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
                     <span className="ml-1 text-xs text-zinc-400">days</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <button
-                      type="button"
-                      aria-label={`Edit ${employee.name}`}
-                      onClick={() => setEditing(employee.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-400 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
-                    >
-                      <PencilIcon className="size-3.5" />
-                      Edit
-                    </button>
+                    {canEdit(employee) && (
+                      <button
+                        type="button"
+                        aria-label={`Edit ${employee.name}`}
+                        onClick={() => setEditing(employee.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-400 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+                      >
+                        <PencilIcon className="size-3.5" />
+                        Edit
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -213,6 +240,8 @@ function EmployeeManager({ employees, currentUserId }: EmployeeManagerProps) {
           key={editing}
           employee={employees.find((employee) => employee.id === editing)}
           employees={employees}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
           onSaved={saved}
           onCancel={closeForm}
         />

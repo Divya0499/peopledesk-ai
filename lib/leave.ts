@@ -14,6 +14,9 @@ export const MAX_NOTE_LENGTH = 500;
 export const NO_APPROVER_ERROR =
   "No one can approve this leave yet: you don't have a manager and there's no other admin. An admin can assign you a manager on the Employees page.";
 
+const AUTO_APPROVED_NOTE =
+  "Approved automatically: no one is above you in the reporting line";
+
 type RequestedLeave = {
   userId: string;
   days: number;
@@ -38,6 +41,12 @@ async function previousRequestResult(application: RequestedLeave) {
   };
 }
 
+// a super admin with no manager has no one above them, so their leave is
+// approved straight away instead of waiting on someone who reports to them
+function isTopOfOrg(employee: { managerId: string | null; role: UserRole }) {
+  return !employee.managerId && employee.role === "super_admin";
+}
+
 // someone has to be able to decide their leave (see approvableBy): their
 // manager, or for people without one, an admin other than themselves.
 // null = employee not found
@@ -47,19 +56,19 @@ export async function hasLeaveApprover(
 ) {
   const requester = await client.employee.findUnique({
     where: { id: userId },
-    select: { managerId: true },
+    select: { managerId: true, role: true },
   });
 
   if (!requester) {
     return null;
   }
 
-  if (requester.managerId) {
+  if (requester.managerId || isTopOfOrg(requester)) {
     return true;
   }
 
   const otherAdmins = await client.employee.count({
-    where: { role: "admin", id: { not: userId } },
+    where: { role: { in: ["admin", "super_admin"] }, id: { not: userId } },
   });
 
   return otherAdmins > 0;
@@ -119,6 +128,8 @@ export async function requestLeave(
         where: { id: userId },
         select: {
           leaveBalance: true,
+          managerId: true,
+          role: true,
           manager: { select: { name: true } },
         },
       });
@@ -133,6 +144,30 @@ export async function requestLeave(
           error: "Insufficient leave balance",
           requestedDays: days,
           leaveBalance: employee.leaveBalance,
+        };
+      }
+
+      if (isTopOfOrg(employee)) {
+        await tx.leaveApplication.create({
+          data: {
+            userId,
+            days,
+            requestId,
+            reason: trimmedReason,
+            status: "approved",
+            decidedAt: new Date(),
+            decisionNote: AUTO_APPROVED_NOTE,
+          },
+        });
+
+        return {
+          success: true as const,
+          status: "approved" as const,
+          days,
+          remainingBalance: employee.leaveBalance,
+          approver: null,
+          requestId,
+          message: `Leave for ${days} day(s) is approved. ${AUTO_APPROVED_NOTE}.`,
         };
       }
 
@@ -191,16 +226,22 @@ export async function listMyLeaveRequests(userId: string, take = 50) {
 
 type Approver = { userId: string; role: UserRole };
 
-// direct reports, and for admins also people without a manager. never yourself
+// direct reports, for admins also people without a manager, and for super
+// admins everyone (e.g. when a manager is away). never yourself
 function approvableBy(approver: Approver): Prisma.EmployeeWhereInput {
   const reports: Prisma.EmployeeWhereInput = { managerId: approver.userId };
+  const notSelf: Prisma.EmployeeWhereInput = { id: { not: approver.userId } };
+
+  if (approver.role === "super_admin") {
+    return notSelf;
+  }
 
   const scope =
     approver.role === "admin"
       ? { OR: [reports, { managerId: null }] }
       : reports;
 
-  return { AND: [scope, { id: { not: approver.userId } }] };
+  return { AND: [scope, notSelf] };
 }
 
 export async function listPendingForApprover(approver: Approver) {

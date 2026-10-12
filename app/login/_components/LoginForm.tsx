@@ -10,7 +10,8 @@ import { EyeIcon, EyeOffIcon } from "@/app/chat/_components/icons";
 // as each kind of user. They only exist where the seed has been run.
 const DEMO_PASSWORD = "PeopleDesk@123";
 const DEMO_ACCOUNTS = [
-  { email: "asha@peopledesk.dev", name: "Asha Rao", label: "HR admin" },
+  { email: "asha@peopledesk.dev", name: "Asha Rao", label: "Super admin" },
+  { email: "meera@peopledesk.dev", name: "Meera Iyer", label: "HR admin" },
   { email: "vikram@peopledesk.dev", name: "Vikram Shah", label: "Manager" },
   { email: "neha@peopledesk.dev", name: "Neha Gupta", label: "Employee" },
 ];

@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json(
-      { status: "pending", message: result.message },
+      { status: result.status, message: result.message },
       { status: 201 },
     );
   } catch (error) {

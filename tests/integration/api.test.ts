@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
 import type { CurrentUser } from "@/lib/session";
 
 import { describeDb, PASSWORD, resetDatabase, seedTeam } from "../support/db";
@@ -23,7 +24,7 @@ vi.mock("@/lib/session", () => ({
       };
     }
 
-    if (session.user.role !== "admin") {
+    if (!isAdminRole(session.user.role)) {
       return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
     }
 

@@ -7,7 +7,8 @@ import {
 import { requireAdmin } from "@/lib/session";
 
 // Employee management is admin-only: it sets roles, managers, balances and
-// passwords. Checked before the body is read.
+// passwords. Checked before the body is read; who may give which role is
+// checked in lib/employees.ts.
 export async function GET() {
   const { error } = await requireAdmin();
 
@@ -23,7 +24,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
 
   if (error) return error;
 
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await createEmployee(body.data);
+    const result = await createEmployee(user, body.data);
 
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });

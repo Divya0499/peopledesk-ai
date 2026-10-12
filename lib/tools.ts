@@ -53,7 +53,12 @@ export async function getEmployeeDetails(userId: string) {
     id: employee.id,
     name: employee.name,
     department: employee.department,
+    jobTitle: employee.jobTitle,
     leaveBalance: employee.leaveBalance,
-    leaveApprover: employee.manager?.name ?? "HR",
+    leaveApprover:
+      employee.manager?.name ??
+      (employee.role === "super_admin"
+        ? "No one (approved automatically)"
+        : "HR"),
   };
 }

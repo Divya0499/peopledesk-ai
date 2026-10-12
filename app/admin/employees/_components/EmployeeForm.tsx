@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 
 import { CloseIcon } from "@/app/chat/_components/icons";
+import { canAssignRole, ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 
 import type { Employee } from "./types";
 
 type EmployeeFormProps = {
   employee?: Employee;
   employees: Employee[];
+  currentUserId: string;
+  currentUserRole: Role;
   onSaved: () => void;
   onCancel: () => void;
 };
@@ -20,14 +23,26 @@ const labelClass = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
 function EmployeeForm({
   employee,
   employees,
+  currentUserId,
+  currentUserRole,
   onSaved,
   onCancel,
 }: EmployeeFormProps) {
   const editing = Boolean(employee);
+  // someone else has to change your role (the API refuses it too)
+  const editingSelf = employee?.id === currentUserId;
+  const roleOptions = ROLES.filter((role) =>
+    canAssignRole(currentUserRole, role),
+  );
+  // keeps the current role listed even if you can't assign it
+  const shownRoles = employee && !roleOptions.includes(employee.role)
+    ? [employee.role, ...roleOptions]
+    : roleOptions;
   const [form, setForm] = useState({
     name: employee?.name ?? "",
     email: employee?.email ?? "",
     department: employee?.department ?? "",
+    jobTitle: employee?.jobTitle ?? "",
     role: employee?.role ?? "employee",
     managerId: employee?.managerId ?? "",
     leaveBalance: String(employee?.leaveBalance ?? 24),
@@ -145,12 +160,21 @@ function EmployeeForm({
               className={inputClass}
             />
           </label>
-          <label className={`${labelClass} sm:col-span-2`}>
+          <label className={labelClass}>
             Department
             <input
               required
               value={form.department}
               onChange={(e) => set("department")(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className={labelClass}>
+            Job title
+            <input
+              value={form.jobTitle}
+              onChange={(e) => set("jobTitle")(e.target.value)}
+              placeholder="e.g. Software Engineer"
               className={inputClass}
             />
           </label>
@@ -174,10 +198,17 @@ function EmployeeForm({
             <select
               value={form.role}
               onChange={(e) => set("role")(e.target.value)}
-              className={inputClass}
+              disabled={editingSelf}
+              title={
+                editingSelf ? "Another admin has to change your role" : undefined
+              }
+              className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              <option value="employee">Employee</option>
-              <option value="admin">Admin</option>
+              {shownRoles.map((role) => (
+                <option key={role} value={role}>
+                  {ROLE_LABELS[role]}
+                </option>
+              ))}
             </select>
           </label>
           <label className={labelClass}>

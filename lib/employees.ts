@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { canAssignRole, isAdminRole, ROLES } from "@/lib/roles";
 
 const MAX_LEAVE_DAYS = 365;
 
@@ -14,7 +15,14 @@ const fields = {
     .toLowerCase()
     .pipe(z.email("Enter a valid email address")),
   department: z.string().trim().min(1, "Department is required").max(100),
-  role: z.enum(["employee", "admin"]),
+  // "" = none
+  jobTitle: z
+    .string()
+    .trim()
+    .max(100)
+    .nullish()
+    .transform((value) => value || null),
+  role: z.enum(ROLES),
   // "" = no manager
   managerId: z
     .string()
@@ -43,13 +51,20 @@ export const updateEmployeeSchema = z.object(fields).partial();
 
 export type EmployeeResult =
   | { ok: true; id: string }
-  | { ok: false; status: 400 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
+
+// the admin making the change
+type Actor = { userId: string; role: string };
+
+const SUPER_ADMIN_ONLY =
+  "Only a super admin can give admin rights or change an admin's account";
 
 const employeeSelect = {
   id: true,
   name: true,
   email: true,
   department: true,
+  jobTitle: true,
   role: true,
   leaveBalance: true,
   managerId: true,
@@ -102,8 +117,13 @@ function isUniqueEmailError(error: unknown) {
 }
 
 export async function createEmployee(
+  actor: Actor,
   input: z.infer<typeof createEmployeeSchema>,
 ): Promise<EmployeeResult> {
+  if (!canAssignRole(actor.role, input.role)) {
+    return { ok: false, status: 403, error: SUPER_ADMIN_ONLY };
+  }
+
   if (input.managerId && !(await managerExists(input.managerId))) {
     return { ok: false, status: 400, error: "That manager doesn't exist" };
   }
@@ -130,26 +150,40 @@ export async function createEmployee(
 }
 
 export async function updateEmployee(
-  adminId: string,
+  actor: Actor,
   employeeId: string,
   input: z.infer<typeof updateEmployeeSchema>,
 ): Promise<EmployeeResult> {
   const existing = await prisma.employee.findUnique({
     where: { id: employeeId },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
   if (!existing) {
     return { ok: false, status: 404, error: "Employee not found" };
   }
 
-  // don't let an admin remove their own admin role
-  if (employeeId === adminId && input.role && input.role !== "admin") {
+  const roleChanged = input.role !== undefined && input.role !== existing.role;
+
+  // someone else has to change your role, so the last super admin can't
+  // demote themselves and leave no one to manage the admins
+  if (employeeId === actor.userId && roleChanged) {
     return {
       ok: false,
       status: 400,
-      error: "You can't remove your own admin role",
+      error: "You can't change your own role",
     };
+  }
+
+  // an HR admin manages employees, not other admins or super admins
+  const editsOtherAdmin =
+    employeeId !== actor.userId && isAdminRole(existing.role);
+
+  if (
+    (editsOtherAdmin && !canAssignRole(actor.role, existing.role)) ||
+    (roleChanged && !canAssignRole(actor.role, input.role!))
+  ) {
+    return { ok: false, status: 403, error: SUPER_ADMIN_ONLY };
   }
 
   if (input.managerId) {

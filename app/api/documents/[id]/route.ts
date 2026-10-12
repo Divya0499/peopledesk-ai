@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { deleteDocumentVectors } from "@/lib/ingest";
+import { isAdminRole } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 export async function DELETE(
@@ -12,7 +13,7 @@ export async function DELETE(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (user.role !== "admin") {
+  if (!isAdminRole(user.role)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

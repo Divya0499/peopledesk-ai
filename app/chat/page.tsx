@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { getConversation, listConversations } from "@/lib/conversations";
 import { listDocuments } from "@/lib/ingest";
+import { isAdminRole } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 import ChatLayout from "./_components/ChatLayout";
@@ -20,7 +21,7 @@ async function Chat({ searchParams }: ChatPageProps) {
     redirect("/login");
   }
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = isAdminRole(user.role);
   const { c } = await searchParams;
   const openId = typeof c === "string" ? c : undefined;
 

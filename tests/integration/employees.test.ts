@@ -21,6 +21,9 @@ const newEmployee = {
   password: "Welcome@123",
 };
 
+const adminUser = { userId: "admin", role: "admin" as const };
+const superAdminUser = { userId: "super", role: "super_admin" as const };
+
 describeDb("employee management", () => {
   beforeEach(async () => {
     await resetDatabase();
@@ -29,7 +32,7 @@ describeDb("employee management", () => {
 
   it("creates an employee with a normalised email and hashed password", async () => {
     const input = createEmployeeSchema.parse(newEmployee);
-    const result = await createEmployee(input);
+    const result = await createEmployee(adminUser, input);
 
     expect(result.ok).toBe(true);
 
@@ -47,7 +50,7 @@ describeDb("employee management", () => {
       email: "ALICE@test.dev",
     });
 
-    expect(await createEmployee(input)).toMatchObject({
+    expect(await createEmployee(adminUser, input)).toMatchObject({
       ok: false,
       status: 409,
     });
@@ -59,7 +62,7 @@ describeDb("employee management", () => {
       managerId: "nobody",
     });
 
-    expect(await createEmployee(input)).toMatchObject({ status: 400 });
+    expect(await createEmployee(adminUser, input)).toMatchObject({ status: 400 });
   });
 
   it("validates input before anything is saved", () => {
@@ -88,22 +91,22 @@ describeDb("employee management", () => {
   it("refuses a manager change that would make a reporting loop", async () => {
     // alice → manager → admin; making alice the admin's manager loops
     expect(
-      await updateEmployee("admin", "admin", { managerId: "alice" }),
+      await updateEmployee(adminUser, "admin", { managerId: "alice" }),
     ).toMatchObject({ ok: false, status: 400 });
 
     expect(
-      await updateEmployee("admin", "alice", { managerId: "alice" }),
+      await updateEmployee(adminUser, "alice", { managerId: "alice" }),
     ).toMatchObject({ ok: false, status: 400 });
 
     // Moving alice to report to bob is fine
     expect(
-      await updateEmployee("admin", "alice", { managerId: "bob" }),
+      await updateEmployee(adminUser, "alice", { managerId: "bob" }),
     ).toMatchObject({ ok: true });
   });
 
-  it("won't let an admin remove their own admin role", async () => {
+  it("won't let anyone change their own role", async () => {
     expect(
-      await updateEmployee("admin", "admin", { role: "employee" }),
+      await updateEmployee(adminUser, "admin", { role: "employee" }),
     ).toMatchObject({ ok: false, status: 400 });
 
     const admin = await prisma.employee.findUniqueOrThrow({
@@ -112,18 +115,60 @@ describeDb("employee management", () => {
     expect(admin.role).toBe("admin");
   });
 
+  it("lets only a super admin give or take away admin rights", async () => {
+    await prisma.employee.create({
+      data: {
+        id: "super",
+        name: "Super",
+        email: "super@test.dev",
+        role: "super_admin",
+        department: "HR",
+        leaveBalance: 10,
+      },
+    });
+    const asAdmin = createEmployeeSchema.parse({ ...newEmployee, role: "admin" });
+
+    // an HR admin can't create admins, promote people or touch admin accounts
+    expect(await createEmployee(adminUser, asAdmin)).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+    expect(
+      await updateEmployee(adminUser, "bob", { role: "admin" }),
+    ).toMatchObject({ ok: false, status: 403 });
+    expect(
+      await updateEmployee(adminUser, "super", { name: "Renamed" }),
+    ).toMatchObject({ ok: false, status: 403 });
+
+    // but can still edit their own account and ordinary employees
+    expect(
+      await updateEmployee(adminUser, "admin", { department: "People" }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await updateEmployee(adminUser, "bob", { department: "Sales" }),
+    ).toMatchObject({ ok: true });
+
+    // a super admin can do all of it
+    expect(await createEmployee(superAdminUser, asAdmin)).toMatchObject({
+      ok: true,
+    });
+    expect(
+      await updateEmployee(superAdminUser, "admin", { role: "employee" }),
+    ).toMatchObject({ ok: true });
+  });
+
   it("resets a password only when a new one is given", async () => {
     const before = await prisma.employee.findUniqueOrThrow({
       where: { id: "bob" },
     });
 
-    await updateEmployee("admin", "bob", { department: "Sales" });
+    await updateEmployee(adminUser, "bob", { department: "Sales" });
     const unchanged = await prisma.employee.findUniqueOrThrow({
       where: { id: "bob" },
     });
     expect(unchanged.passwordHash).toBe(before.passwordHash);
 
-    await updateEmployee("admin", "bob", { password: "Another@123" });
+    await updateEmployee(adminUser, "bob", { password: "Another@123" });
     const changed = await prisma.employee.findUniqueOrThrow({
       where: { id: "bob" },
     });
@@ -133,7 +178,7 @@ describeDb("employee management", () => {
   });
 
   it("returns 404 for an unknown employee", async () => {
-    expect(await updateEmployee("admin", "ghost", { name: "X" })).toMatchObject(
+    expect(await updateEmployee(adminUser, "ghost", { name: "X" })).toMatchObject(
       { status: 404 },
     );
   });

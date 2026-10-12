@@ -37,17 +37,36 @@ test("the server's validation messages reach the form", async ({ page }) => {
   );
 });
 
-test("an admin can't remove their own admin role", async ({ page }) => {
+test("no one can change their own role", async ({ page }) => {
   await login(page, users.admin.email);
   await page.goto("/admin/employees");
 
   await page.getByRole("button", { name: `Edit ${users.admin.name}` }).click();
-  await page.getByLabel("Role").selectOption("employee");
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByLabel("Role")).toBeDisabled();
+});
 
-  await expect(appAlert(page)).toHaveText(
-    "You can't remove your own admin role",
-  );
+test("only a super admin can give admin rights", async ({ page }) => {
+  // an HR admin can only add employees, and can't edit the super admin
+  await login(page, users.admin.email);
+  await page.goto("/admin/employees");
+
+  await expect(
+    page.getByRole("button", { name: `Edit ${users.superAdmin.name}` }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Add employee" }).click();
+  await expect(page.getByLabel("Role").locator("option")).toHaveText([
+    "Employee",
+  ]);
+  await logout(page);
+
+  await login(page, users.superAdmin.email);
+  await page.goto("/admin/employees");
+  await page.getByRole("button", { name: "Add employee" }).click();
+  await expect(page.getByLabel("Role").locator("option")).toHaveText([
+    "Employee",
+    "HR admin",
+    "Super admin",
+  ]);
 });
 
 test("changing a manager moves the employee's approvals", async ({ page }) => {

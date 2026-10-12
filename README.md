@@ -29,8 +29,24 @@ Created by `npm run db:seed`, password `PeopleDesk@123`:
 |---|---|---|
 | `neha@peopledesk.dev` | Employee | Ask the assistant to apply leave, then check the **Leave** page |
 | `rohan@peopledesk.dev` | Employee | Same team as Neha (reports to Vikram) |
-| `vikram@peopledesk.dev` | Manager | Approve / reject on **Leave** |
-| `asha@peopledesk.dev` | HR admin | Upload policy PDFs, add employees on **Employees** |
+| `vikram@peopledesk.dev` | Employee who manages Neha and Rohan | Approve / reject on **Leave** |
+| `meera@peopledesk.dev` | HR admin | Upload policy PDFs, add employees on **Employees** |
+| `asha@peopledesk.dev` | Super admin (Head of HR) | Make people HR admins, approve anyone's leave |
+
+## Roles
+
+What someone can do is their **role**; their **job title** ("Head of HR", "Software Engineer") is only shown, never checked. Like most HR systems, being a manager isn't a role: anyone with direct reports approves their leave.
+
+| | Employee | HR admin | Super admin |
+|---|:-:|:-:|:-:|
+| Chat, own leave, approve direct reports | ✓ | ✓ | ✓ |
+| Upload / delete policy PDFs | | ✓ | ✓ |
+| Add and edit employees | | ✓ | ✓ |
+| Approve leave of people without a manager | | ✓ | ✓ |
+| Give or remove admin rights, edit admin accounts | | | ✓ |
+| Approve any pending leave (e.g. a manager is away) | | | ✓ |
+
+No one can change their own role, so there's always a super admin left. Roles are checked on the server (`lib/roles.ts`, `lib/employees.ts`, `lib/leave.ts`); the UI only hides what you can't use.
 
 ## Running locally
 
@@ -81,7 +97,7 @@ If no one could approve it, there's no Confirm card: applyLeave runs straight
 away, is refused, nothing is reserved and the assistant explains why.
 ```
 
-If an employee has no manager, another admin approves. If there's no other admin either (e.g. `asha@peopledesk.dev` in the demo data), the request is refused until someone assigns them a manager, so days are never reserved on a request no one can decide. No one can approve their own leave. Chat and the leave form both go through `lib/leave.ts`, so the rules are the same.
+If an employee has no manager, an admin or super admin other than themselves approves. A super admin with no manager is at the top of the reporting line, so their leave is approved automatically instead of waiting on someone who reports to them (`asha@peopledesk.dev` in the demo data). If no one at all could decide a request, it's refused, so days are never reserved on a request no one can decide. No one can approve their own leave. Chat and the leave form both go through `lib/leave.ts`, so the rules are the same.
 
 ## RAG evaluation
 

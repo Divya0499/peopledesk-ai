@@ -279,6 +279,52 @@ describeDb("leave workflow", () => {
     expect(await isApprover({ userId: "alice", role: "employee" })).toBe(false);
   });
 
+  it("approves a super admin's leave when no one is above them", async () => {
+    await prisma.employee.update({
+      where: { id: "admin" },
+      data: { role: "super_admin" },
+    });
+
+    expect(await hasLeaveApprover("admin")).toBe(true);
+    expect(await requestLeave("admin", 2, "r1")).toMatchObject({
+      success: true,
+      status: "approved",
+      approver: null,
+    });
+    expect(await balanceOf("admin")).toBe(8);
+
+    const application = await prisma.leaveApplication.findFirstOrThrow({
+      where: { userId: "admin" },
+    });
+    expect(application.status).toBe("approved");
+
+    // with a manager, it goes to them like anyone else's
+    await prisma.employee.update({
+      where: { id: "admin" },
+      data: { managerId: "manager" },
+    });
+    expect(await requestLeave("admin", 1, "r2")).toMatchObject({
+      status: "pending",
+      approver: "Manager",
+    });
+  });
+
+  it("lets a super admin decide anyone's pending leave but their own", async () => {
+    await prisma.employee.update({
+      where: { id: "admin" },
+      data: { role: "super_admin" },
+    });
+    const superAdmin = { userId: "admin", role: "super_admin" as const };
+    await requestLeave("alice", 1, "a");
+
+    expect(
+      (await listPendingForApprover(superAdmin)).map((r) => r.employee.id),
+    ).toEqual(["alice"]);
+    expect(
+      await decideLeave(superAdmin, await pendingId("alice"), true),
+    ).toMatchObject({ ok: true });
+  });
+
   it("lets the employee cancel a pending request, once", async () => {
     await requestLeave("alice", 4, "r1");
     const id = await pendingId("alice");

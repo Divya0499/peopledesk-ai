@@ -1,11 +1,7 @@
 import LogoutButton from "@/app/chat/_components/LogoutButton";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 
 import Avatar from "./Avatar";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "HR admin",
-  employee: "Employee",
-};
 
 type UserCardProps = {
   name: string;
@@ -22,7 +18,7 @@ function UserCard({ name, role }: UserCardProps) {
           {name}
         </p>
         <p className="truncate text-xs text-zinc-500">
-          {ROLE_LABELS[role] ?? role}
+          {ROLE_LABELS[role as Role] ?? role}
         </p>
       </div>
       <LogoutButton compact />

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import LogoutButton from "@/app/chat/_components/LogoutButton";
 import { SparkIcon } from "@/app/chat/_components/icons";
+import { isAdminRole } from "@/lib/roles";
 import type { CurrentUser } from "@/lib/session";
 
 import Logo from "./Logo";
@@ -29,7 +30,7 @@ function PageShell({
   actions,
   children,
 }: PageShellProps) {
-  const isAdmin = user.role === "admin";
+  const isAdmin = isAdminRole(user.role);
 
   return (
     <div className="flex min-h-dvh bg-zinc-50 dark:bg-zinc-950">

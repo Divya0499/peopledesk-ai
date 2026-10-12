@@ -73,6 +73,8 @@ model Employee {
   // pending requests are already subtracted
   leaveBalance      Int
   department        String
+  // e.g. "Head of HR", "Software Engineer"; only shown, never checked
+  jobTitle          String?
   role              UserRole           @default(employee)
   // null = admins approve
   managerId         String?
@@ -87,9 +89,17 @@ model Employee {
   @@index([managerId])
 }
 
+// what someone may do in the app, separate from their job title. "manager"
+// isn't a role: anyone with direct reports approves their leave.
+// admin       = HR admin: manages employees and policy documents, approves
+//               leave for people without a manager
+// super_admin = every admin right, plus managing admins and approving any
+//               pending leave. With no manager, no one is above them, so their
+//               own leave is approved automatically
 enum UserRole {
   employee
   admin
+  super_admin
 }
 
 enum LeaveStatus {

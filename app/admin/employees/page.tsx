@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import PageShell from "@/app/_components/PageShell";
 import { listEmployees } from "@/lib/employees";
+import { isAdminRole } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 import EmployeeManager from "./_components/EmployeeManager";
@@ -15,7 +16,7 @@ async function EmployeesPage() {
     redirect("/login");
   }
 
-  if (user.role !== "admin") {
+  if (!isAdminRole(user.role)) {
     redirect("/chat");
   }
 
@@ -27,7 +28,11 @@ async function EmployeesPage() {
       title="Employees"
       description="Add people, set their manager and adjust leave balances."
     >
-      <EmployeeManager employees={employees} currentUserId={user.userId} />
+      <EmployeeManager
+        employees={employees}
+        currentUserId={user.userId}
+        currentUserRole={user.role}
+      />
     </PageShell>
   );
 }

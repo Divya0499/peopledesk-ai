@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import type { UserRole } from "./generated/prisma/client";
 import { prisma } from "./prisma";
+import { isAdminRole } from "./roles";
 
 const SESSION_COOKIE = "session";
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -105,7 +106,7 @@ export async function requireAdmin(): Promise<
     return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  if (user.role !== "admin") {
+  if (!isAdminRole(user.role)) {
     return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
   }
 

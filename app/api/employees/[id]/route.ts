@@ -24,7 +24,7 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const result = await updateEmployee(user.userId, id, body.data);
+    const result = await updateEmployee(user, id, body.data);
 
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
