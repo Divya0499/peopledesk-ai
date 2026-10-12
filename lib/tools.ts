@@ -2,10 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/retry";
 
 export async function getLeaveBalance(userId: string) {
-  console.log("getLeaveBalance called for:", userId);
-
-  const startedAt = Date.now();
-
   const [employee, pending] = await withRetry(() =>
     Promise.all([
       prisma.employee.findUnique({
@@ -17,8 +13,6 @@ export async function getLeaveBalance(userId: string) {
       }),
     ]),
   );
-
-  console.log(`getLeaveBalance: ${Date.now() - startedAt}ms`);
 
   if (!employee) {
     return {
@@ -36,8 +30,6 @@ export async function getLeaveBalance(userId: string) {
 }
 
 export async function getEmployeeDetails(userId: string) {
-  console.log("getEmployeeDetails called for:", userId);
-
   const employee = await prisma.employee.findUnique({
     where: { id: userId },
     include: { manager: { select: { name: true } } },

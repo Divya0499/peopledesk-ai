@@ -36,12 +36,6 @@ export async function searchChunks(
 
   const matches = searchResult.matches ?? [];
 
-  // log before filtering, useful for tuning MIN_SCORE
-  console.log(
-    "Retrieval scores:",
-    matches.map((match) => match.score?.toFixed(3)),
-  );
-
   return matches
     .filter((match) => (match.score ?? 0) >= MIN_SCORE)
     .map((match) => ({

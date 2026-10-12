@@ -26,8 +26,6 @@ export function createAskHrAgentTool(userId: string) {
           ? hrRunId(threadId, toolCallId)
           : crypto.randomUUID();
 
-      const start = Date.now();
-      console.log(`askHrAgent started at ${start}`);
       // no try/catch here! interrupt() throws GraphInterrupt and the
       // supervisor needs to get it
       const result = await hrGraph.invoke(
@@ -38,7 +36,6 @@ export function createAskHrAgentTool(userId: string) {
         },
         graphConfig(requestId),
       );
-      console.log(`askHrAgent finished after ${Date.now() - start}ms`);
 
       if (result.approved === false) {
         return LEAVE_REJECTED;
@@ -63,10 +60,7 @@ export function createAskHrAgentTool(userId: string) {
 export function createAskRagAgentTool() {
   return tool(
     async ({ request }): Promise<[string, RagSource[]]> => {
-      const start = Date.now();
-      console.log(`askRagAgent started at ${start}`);
       const { text, sources } = await askRag(request);
-      console.log(`askRagAgent finished after ${Date.now() - start}ms`);
 
       return [wrapUntrustedToolText(text), sources];
     },

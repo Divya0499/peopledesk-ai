@@ -33,11 +33,6 @@ const retrieveAndRerank = RunnableLambda.from(
   async ({ question }: RagInput): Promise<Document[]> => {
     const documents = await retriever.invoke(question);
 
-    console.log(
-      "Retriever:",
-      documents.map((doc) => `${doc.metadata.section} ${doc.metadata.score}`),
-    );
-
     try {
       const relevantDocuments = await Promise.race([
         rerankDocuments(question, documents),
@@ -48,13 +43,6 @@ const retrieveAndRerank = RunnableLambda.from(
           ),
         ),
       ]);
-
-      console.log(
-        "Relevant documents:",
-        relevantDocuments.map(
-          (doc) => `${doc.metadata.section} ${doc.metadata.rerankScore}`,
-        ),
-      );
 
       return relevantDocuments;
     } catch (error) {
